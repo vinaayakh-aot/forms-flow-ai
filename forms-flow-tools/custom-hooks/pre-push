@@ -2,7 +2,7 @@
 set -eu
 
 # Check if we have an interactive terminal
-if ! [ -t 0 ] || ! [ -t 1 ]; then
+if [ -z "$TERM" ] || [ "$TERM" = "dumb" ]; then
     echo "Non-interactive environment detected. Skipping interactive checks." >&2
     exit 0
 fi
