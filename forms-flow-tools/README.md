@@ -62,3 +62,4 @@ You can bypass the pre-push hook using the `--no-verify` flag:
     ```
 
 **Note:** Use this bypass option with caution, as it skips important quality checks.
+ 
