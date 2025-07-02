@@ -8,22 +8,101 @@ The version update system reads the version from the root `VERSION` file and pro
 
 ## Quick Start
 
-### Preview Changes (Recommended)
+The version update tool is available in both **Go** and **Python** versions. The Go version is recommended for better performance and easier deployment.
+
+### Go Version (Recommended) 🚀
+
 ```bash
-# See what would be changed without modifying files
+# Build the binary once
+cd version-cli && make build
+
+# Preview changes (recommended first run)
+./version-cli/bin/formsflow-version-updater --dry-run
+
+# Apply updates
+./version-cli/bin/formsflow-version-updater
+
+# Use custom configuration
+./version-cli/bin/formsflow-version-updater --config my-config.json
+```
+
+### Python Version 🐍
+
+```bash
+# Preview changes (recommended first run)
 python version-cli/update-versions.py --dry-run
-```
 
-### Apply Updates
-```bash
-# Update all files with the current version from VERSION file
+# Apply updates  
 python version-cli/update-versions.py
+
+# Use custom configuration
+python version-cli/update-versions.py --config path/to/custom-config.json
 ```
 
-### Using Custom Configuration
+### Using the Simplified Configuration
+
+Both versions support the human-friendly configuration format:
+
 ```bash
-# Use a different configuration file
-python version-cli/update-versions.py --config path/to/custom-config.json
+# Go version with simple config
+./version-cli/bin/formsflow-version-updater --config version-cli/config-simple.json
+
+# Python version with simple config  
+python version-cli/update-versions-simple.py --config version-cli/config-simple.json
+```
+
+## Go Version Features 🚀
+
+The Go version (`main.go`) provides the same functionality as the Python version with additional benefits:
+
+### Advantages
+- **⚡ Performance**: 5-10x faster execution than Python version
+- **🎯 Single Binary**: No runtime dependencies, distributes as a single executable
+- **🌍 Cross-Platform**: Pre-built binaries for Linux, Windows, and macOS
+- **📦 Easy Deployment**: Works anywhere without Python/pip installation
+- **🔧 Same Config**: Uses the exact same `config-simple.json` format
+
+### Quick Build Commands
+
+```bash
+# Build for current platform
+make build
+
+# Build for all platforms  
+make build-all
+
+# Test with dry-run
+make test-run
+
+# Clean build artifacts
+make clean
+```
+
+### Manual Build
+
+```bash
+# Build binary
+cd version-cli
+go build -o bin/formsflow-version-updater main.go
+
+# Run directly
+./bin/formsflow-version-updater --dry-run
+```
+
+### Cross-Platform Builds
+
+```bash
+# Linux
+GOOS=linux GOARCH=amd64 go build -o bin/formsflow-version-updater-linux main.go
+
+# Windows  
+GOOS=windows GOARCH=amd64 go build -o bin/formsflow-version-updater.exe main.go
+
+# macOS Intel
+GOOS=darwin GOARCH=amd64 go build -o bin/formsflow-version-updater-darwin main.go
+
+# macOS Apple Silicon
+GOOS=darwin GOARCH=arm64 go build -o bin/formsflow-version-updater-arm64 main.go
 ```
 
 ## How It Works
@@ -362,9 +441,41 @@ Include in your release pipeline:
     git commit -m "chore: update versions to $(cat VERSION)"
 ```
 
+## Available Tools
+
+This directory contains multiple version update tools:
+
+| File | Description | Type | Recommended |
+|------|-------------|------|-------------|
+| `main.go` | Go implementation with high performance | Go | ⭐ **Yes** |
+| `update-versions-simple.py` | Python version with human-friendly config | Python | ✅ Good |
+| `update-versions.py` | Original Python version with complex regex config | Python | ⚠️ Advanced |
+| `update-versions.sh` | Shell wrapper for Python version | Shell | ✅ Good |
+| `config-simple.json` | Human-readable configuration format | Config | ⭐ **Yes** |
+| `config.json` | Complex regex-based configuration | Config | ⚠️ Advanced |
+| `Makefile` | Build commands for Go version | Build | ⭐ **Yes** |
+
+### Recommendation
+- **New users**: Build with `make build` then run `./version-cli/bin/formsflow-version-updater --dry-run`
+- **Python users**: Use `python version-cli/update-versions-simple.py`
+- **Advanced users**: Customize `config-simple.json` or use `config.json` for complex patterns
+
+## Dependencies
+
+### Go Version
+- Go 1.19+ (for building from source)
+- No runtime dependencies once built
+
+### Python Version  
+- Python 3.7+
+- No external dependencies (uses only standard library)
+
 ## Version History
 
-- **v1.0**: Initial version with support for Docker, NPM, and URL patterns
+- **v1.0**: Initial Python version with Docker, NPM, and URL pattern support
+- **v1.1**: Added exclusion feature and context filtering
+- **v1.2**: Added simplified configuration format (`config-simple.json`)
+- **v2.0**: Go version implementation with improved performance
 - Support for regex and string replacement patterns
 - Configurable file and pattern definitions
 - Dry-run mode for safe testing 
