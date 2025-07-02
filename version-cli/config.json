@@ -65,9 +65,9 @@
       "path": "forms-flow-web/package.json",
       "patterns": [
         {
-          "description": "Package.json version field",
-          "search": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
-          "replace": "\"version\": \"{no_prefix}\"",
+          "description": "Package.json main version field",
+          "search": "\"name\": \"formsflow-ai-react\",\\s+\"description\": \"React web app for formsflow.ai project\",\\s+\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
+          "replace": "\"name\": \"formsflow-ai-react\",\n  \"description\": \"React web app for formsflow.ai project\",\n  \"version\": \"{no_prefix}\"",
           "regex": true
         }
       ]
@@ -76,9 +76,15 @@
       "path": "forms-flow-web/package-lock.json",
       "patterns": [
         {
-          "description": "Package-lock.json version fields",
-          "search": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
-          "replace": "\"version\": \"{no_prefix}\"",
+          "description": "Package-lock.json root version field",
+          "search": "\"name\": \"formsflow-ai-react\",\\s+\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
+          "replace": "\"name\": \"formsflow-ai-react\",\n  \"version\": \"{no_prefix}\"",
+          "regex": true
+        },
+        {
+          "description": "Package-lock.json root package version",
+          "search": "\"packages\": \\{\\s+\"\": \\{\\s+\"name\": \"formsflow-ai-react\",\\s+\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
+          "replace": "\"packages\": {\n    \"\": {\n      \"name\": \"formsflow-ai-react\",\n      \"version\": \"{no_prefix}\"",
           "regex": true
         }
       ]
@@ -87,9 +93,9 @@
       "path": "forms-flow-web-root-config/package-lock.json",
       "patterns": [
         {
-          "description": "Root config package-lock.json version fields",
-          "search": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
-          "replace": "\"version\": \"{no_prefix}\"",
+          "description": "Root config package-lock.json version (if it has one)",
+          "search": "\"name\": \"@formsflow/root-config\",\\s+\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
+          "replace": "\"name\": \"@formsflow/root-config\",\n  \"version\": \"{no_prefix}\"",
           "regex": true
         }
       ]
