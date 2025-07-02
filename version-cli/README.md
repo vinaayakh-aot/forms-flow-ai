@@ -72,6 +72,8 @@ The `config.json` file defines which files to update and how. Here's the structu
 - **replace**: The replacement text (can include version format placeholders)
 - **regex**: Boolean - whether to use regex matching (default: false)
 - **description**: Human-readable description for logging
+- **exclude**: Array of strings - exclude matches on lines containing these strings
+- **context**: Object - additional filtering options (near, max_matches, max_distance)
 
 ## Currently Configured Files
 
@@ -130,6 +132,142 @@ To add support for new files, edit `version-cli/config.json`:
       "replace": "Current version: {full}",
       "regex": false
     }
+  ]
+}
+```
+
+### Example: Excluding specific lines
+
+```json
+{
+  "path": "docker-compose.yml",
+  "updates": [
+    {
+      "description": "Update all URLs except navigation",
+      "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+      "replace": "{{url_version}}",
+      "type": "regex",
+      "exclude": ["MF_FORMSFLOW_NAV_URL", "CUSTOM_SERVICE_URL"]
+    }
+  ]
+}
+```
+
+### Example: Using context filtering
+
+```json
+{
+  "path": "package.json",
+  "updates": [
+    {
+      "description": "Update only main app version",
+      "find": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+\"",
+      "replace": "\"version\": \"{{npm_version}}\"",
+      "type": "regex",
+      "context": {
+        "near": "\"name\": \"my-app\"",
+        "max_distance": 100
+      }
+    }
+  ]
+}
+```
+
+## Common Use Cases for Exclusions
+
+The exclusion feature is particularly useful for avoiding updates in specific scenarios:
+
+### 1. Skip Deprecated Services
+```json
+{
+  "description": "Update versions except deprecated services",
+  "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+  "replace": "{{url_version}}",
+  "type": "regex",
+  "exclude": ["# DEPRECATED", "DEPRECATED:", "legacy-"]
+}
+```
+
+### 2. Skip Development/Testing URLs
+```json
+{
+  "description": "Update production URLs only",
+  "find": "https://.*@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+  "replace": "https://{{url_version}}",
+  "type": "regex",
+  "exclude": ["localhost", "dev-", "test-", "staging-"]
+}
+```
+
+### 3. Skip Specific Services
+```json
+{
+  "description": "Update all microfrontend URLs except navigation and admin",
+  "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+  "replace": "{{url_version}}",
+  "type": "regex",
+  "exclude": ["MF_FORMSFLOW_NAV_URL", "MF_FORMSFLOW_ADMIN_URL"]
+}
+```
+
+### 4. Skip Commented Lines
+```json
+{
+  "description": "Update active configurations only",
+  "find": "version: v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+  "replace": "version: {{docker_tag}}",
+  "type": "regex",
+  "exclude": ["#", "//", "/*", "<!--"]
+}
+```
+
+### 5. Skip Test Configurations
+```json
+{
+  "description": "Update production configs only",
+  "find": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+\"",
+  "replace": "\"version\": \"{{npm_version}}\"",
+  "type": "regex",
+  "exclude": ["test", "mock", "example", "template"]
+}
+```
+
+### 6. Skip TODO or Work-in-Progress Items
+```json
+{
+  "description": "Update stable versions only",
+  "find": "v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+  "replace": "{{full_version}}",
+  "type": "regex",
+  "exclude": ["TODO:", "FIXME:", "WIP:", "TEMP:"]
+}
+```
+
+### 7. Skip Environment-Specific Configurations
+```json
+{
+  "description": "Update versions except environment-specific ones",
+  "find": "image: myapp:v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+  "replace": "image: myapp:{{docker_tag}}",
+  "type": "regex",
+  "exclude": ["LOCAL_ENV", "DOCKER_ENV", "K8S_ENV"]
+}
+```
+
+### 8. Complex Multi-Exclusion Example
+```json
+{
+  "description": "Comprehensive URL updates with multiple exclusions",
+  "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+  "replace": "{{url_version}}",
+  "type": "regex",
+  "exclude": [
+    "# DEPRECATED",
+    "localhost",
+    "NAV_URL",
+    "ADMIN_URL", 
+    "test-",
+    "TODO:"
   ]
 }
 ```

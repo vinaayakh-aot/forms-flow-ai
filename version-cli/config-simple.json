@@ -18,10 +18,11 @@
           "type": "regex"
         },
         {
-          "description": "All microfrontend URLs",
+          "description": "All microfrontend URLs (except NAV)",
           "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
           "replace": "{{url_version}}",
-          "type": "regex"
+          "type": "regex",
+          "exclude": ["MF_FORMSFLOW_NAV_URL"]
         }
       ]
     },

@@ -109,6 +109,34 @@ class SimpleVersionUpdater:
         
         return search_regex, replace_pattern
     
+    def apply_exclusions(self, content: str, matches: List[tuple], exclusions: List[str]) -> List[tuple]:
+        """Filter out matches that occur on lines containing excluded strings."""
+        if not exclusions:
+            return matches
+            
+        lines = content.split('\n')
+        filtered_matches = []
+        
+        for start, end, match_text in matches:
+            # Find which line this match is on
+            line_start = 0
+            line_num = 0
+            for i, line in enumerate(lines):
+                line_end = line_start + len(line)
+                if line_start <= start <= line_end:
+                    line_num = i
+                    break
+                line_start = line_end + 1  # +1 for newline character
+            
+            # Check if this line contains any excluded strings
+            current_line = lines[line_num] if line_num < len(lines) else ""
+            exclude_match = any(exclusion in current_line for exclusion in exclusions)
+            
+            if not exclude_match:
+                filtered_matches.append((start, end, match_text))
+                
+        return filtered_matches
+
     def apply_context_filtering(self, content: str, pattern: str, context: Dict[str, Any]) -> List[tuple]:
         """Apply context filtering to find the right matches."""
         matches = list(re.finditer(pattern, content))
@@ -169,22 +197,34 @@ class SimpleVersionUpdater:
             try:
                 search_pattern, replace_template = self.create_pattern_from_simple(update, version_patterns)
                 
+                # First find all matches
+                all_matches = list(re.finditer(search_pattern, content))
+                matches_as_tuples = [(m.start(), m.end(), m.group()) for m in all_matches]
+                
+                # Apply exclusions if specified
+                exclusions = update.get('exclude', [])
+                if exclusions:
+                    matches_as_tuples = self.apply_exclusions(content, matches_as_tuples, exclusions)
+                    excluded_count = len(all_matches) - len(matches_as_tuples)
+                    if excluded_count > 0:
+                        print(f"  🚫 Excluded {excluded_count} matches due to exclusion rules")
+                
+                # Apply context filtering if specified
                 if 'context' in update:
-                    # Use context-aware matching
-                    matches = self.apply_context_filtering(content, search_pattern, update['context'])
-                    changes = len(matches)
-                    
-                    # Replace matches in reverse order to maintain positions
-                    for start, end, match_text in reversed(matches):
-                        replacement = re.sub(search_pattern, replace_template, match_text)
-                        content = content[:start] + replacement + content[end:]
-                        
-                else:
-                    # Standard regex replacement
-                    new_content, changes = re.subn(search_pattern, replace_template, content)
-                    content = new_content
+                    # For context filtering, we need to work with the regex pattern directly
+                    context_matches = self.apply_context_filtering(content, search_pattern, update['context'])
+                    # Intersect with exclusion-filtered matches
+                    context_match_positions = {(m[0], m[1]) for m in context_matches}
+                    matches_as_tuples = [m for m in matches_as_tuples if (m[0], m[1]) in context_match_positions]
+                
+                changes = len(matches_as_tuples)
                 
                 if changes > 0:
+                    # Replace matches in reverse order to maintain positions
+                    for start, end, match_text in reversed(matches_as_tuples):
+                        replacement = re.sub(search_pattern, replace_template, match_text)
+                        content = content[:start] + replacement + content[end:]
+                    
                     total_changes += changes
                     print(f"  ✅ {description} ({changes} matches)")
                 
