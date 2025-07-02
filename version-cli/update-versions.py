@@ -107,18 +107,23 @@ class VersionUpdater:
                 print(f"  ❌ Regex error in pattern: {e}")
                 continue
                 
-        if changes_made > 0 and not dry_run:
+        # Check if content actually changed
+        actual_changes = 0 if content == original_content else changes_made
+        
+        if actual_changes > 0 and not dry_run:
             try:
                 with open(full_path, 'w', encoding='utf-8') as f:
                     f.write(content)
-                print(f"📝 Updated {file_path} ({changes_made} changes)")
+                print(f"📝 Updated {file_path} ({actual_changes} changes)")
             except Exception as e:
                 print(f"❌ Error writing {file_path}: {e}")
                 return 0
-        elif changes_made > 0:
-            print(f"🔍 [DRY RUN] Would update {file_path} ({changes_made} changes)")
+        elif actual_changes > 0:
+            print(f"🔍 [DRY RUN] Would update {file_path} ({actual_changes} changes)")
+        elif changes_made > 0 and actual_changes == 0:
+            print(f"✅ {file_path} already up to date (no changes needed)")
             
-        return changes_made
+        return actual_changes
         
     def update_all_files(self, dry_run: bool = False) -> None:
         """Update all files specified in the configuration."""
