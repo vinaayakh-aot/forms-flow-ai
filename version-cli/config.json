@@ -1,0 +1,98 @@
+{
+  "files": [
+    {
+      "path": "deployment/docker/docker-compose.yml",
+      "patterns": [
+        {
+          "description": "Docker image version for forms-flow-forms",
+          "search": "image: formsflow/forms-flow-forms:v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+",
+          "replace": "image: formsflow/forms-flow-forms:{with_v}",
+          "regex": true
+        },
+        {
+          "description": "Microfrontend URLs with version tags",
+          "search": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+",
+          "replace": "{at_version}",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "path": "deployment/docker/sample.env",
+      "patterns": [
+        {
+          "description": "Microfrontend URLs in sample environment file",
+          "search": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+",
+          "replace": "{at_version}",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "path": "forms-flow-web-root-config/docker-compose.yml",
+      "patterns": [
+        {
+          "description": "Microfrontend URLs in root config docker-compose",
+          "search": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+",
+          "replace": "{at_version}",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "path": "forms-flow-web-root-config/sample.env",
+      "patterns": [
+        {
+          "description": "Microfrontend URLs in root config sample.env",
+          "search": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+",
+          "replace": "{at_version}",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "path": "forms-flow-web-root-config/src/index.ejs",
+      "patterns": [
+        {
+          "description": "Theme CSS URL version",
+          "search": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+",
+          "replace": "{at_version}",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "path": "forms-flow-web/package.json",
+      "patterns": [
+        {
+          "description": "Package.json version field",
+          "search": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
+          "replace": "\"version\": \"{no_prefix}\"",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "path": "forms-flow-web/package-lock.json",
+      "patterns": [
+        {
+          "description": "Package-lock.json version fields",
+          "search": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
+          "replace": "\"version\": \"{no_prefix}\"",
+          "regex": true
+        }
+      ]
+    },
+    {
+      "path": "forms-flow-web-root-config/package-lock.json",
+      "patterns": [
+        {
+          "description": "Root config package-lock.json version fields",
+          "search": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z]+\"",
+          "replace": "\"version\": \"{no_prefix}\"",
+          "regex": true
+        }
+      ]
+    }
+  ]
+} 
