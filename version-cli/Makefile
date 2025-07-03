@@ -8,7 +8,7 @@ APP_NAME = formsflow-version-updater
 VERSION = 1.0.0
 BUILD_DIR = bin
 RELEASE_DIR = release
-GO_FILES = main.go
+GO_FILES = .
 
 # Build metadata
 BUILD_TIME = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
