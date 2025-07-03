@@ -76,15 +76,16 @@ type Match struct {
 
 // VersionUpdater handles the version update logic
 type VersionUpdater struct {
-	rootDir        string
-	configPath     string
-	config         Config
-	currentVersion string
-	dryRun         bool
+	rootDir         string
+	configPath      string
+	versionFilePath string
+	config          Config
+	currentVersion  string
+	dryRun          bool
 }
 
 // NewVersionUpdater creates a new version updater instance
-func NewVersionUpdater(configPath string, dryRun bool) (*VersionUpdater, error) {
+func NewVersionUpdater(configPath string, versionFilePath string, dryRun bool) (*VersionUpdater, error) {
 	// Get the directory containing the executable or current working directory
 	rootDir, err := os.Getwd()
 	if err != nil {
@@ -96,10 +97,16 @@ func NewVersionUpdater(configPath string, dryRun bool) (*VersionUpdater, error) 
 		configPath = filepath.Join(rootDir, "version-cli", "config-simple.json")
 	}
 
+	// Default version file path if not provided
+	if versionFilePath == "" {
+		versionFilePath = filepath.Join(rootDir, "VERSION")
+	}
+
 	updater := &VersionUpdater{
-		rootDir:    rootDir,
-		configPath: configPath,
-		dryRun:     dryRun,
+		rootDir:         rootDir,
+		configPath:      configPath,
+		versionFilePath: versionFilePath,
+		dryRun:          dryRun,
 	}
 
 	// Load configuration
@@ -129,12 +136,11 @@ func (v *VersionUpdater) loadConfig() error {
 	return nil
 }
 
-// readVersion reads the current version from the VERSION file
+// readVersion reads the current version from the specified version file
 func (v *VersionUpdater) readVersion() error {
-	versionFile := filepath.Join(v.rootDir, "VERSION")
-	data, err := ioutil.ReadFile(versionFile)
+	data, err := ioutil.ReadFile(v.versionFilePath)
 	if err != nil {
-		return fmt.Errorf("❌ VERSION file not found at %s: %w", versionFile, err)
+		return fmt.Errorf("❌ VERSION file not found at %s: %w", v.versionFilePath, err)
 	}
 
 	v.currentVersion = strings.TrimSpace(string(data))
@@ -419,9 +425,10 @@ func (v *VersionUpdater) getVersionPatterns() map[string]string {
 
 var (
 	// Global flags
-	dryRun     bool
-	configPath string
-	verbose    bool
+	dryRun      bool
+	configPath  string
+	versionFile string
+	verbose     bool
 )
 
 // Styles using lipgloss
@@ -503,8 +510,10 @@ func main() {
 		Short: "Update version references across FormsFlow.ai repository",
 		Long: `FormsFlow.ai Version Update Tool
 
-This tool reads the version from the VERSION file and updates all
-configured files across the repository to maintain version consistency.`,
+This tool reads the version from a VERSION file and updates all
+configured files across the repository to maintain version consistency.
+By default, it looks for a VERSION file in the current directory, but
+you can specify a custom path using the --version-file flag.`,
 		Version: AppVersion,
 		RunE:    runUpdate,
 	}
@@ -512,6 +521,7 @@ configured files across the repository to maintain version consistency.`,
 	// Add flags
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview changes without modifying files")
 	rootCmd.Flags().StringVar(&configPath, "config", "", "Path to configuration file")
+	rootCmd.Flags().StringVar(&versionFile, "version-file", "", "Path to VERSION file (default: ./VERSION)")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed output")
 
 	// Add examples
@@ -522,7 +532,13 @@ configured files across the repository to maintain version consistency.`,
   formsflow-version-updater
 
   # Use custom config
-  formsflow-version-updater --config my-config.json`
+  formsflow-version-updater --config my-config.json
+
+  # Use custom version file
+  formsflow-version-updater --version-file ./app-version.txt
+
+  # Use both custom config and version file
+  formsflow-version-updater --config my-config.json --version-file ./v.txt`
 
 	// Customize version output
 	versionTemplate := fmt.Sprintf(`%s
@@ -774,6 +790,8 @@ func (m model) View() string {
 	if verbose {
 		b.WriteString(dimStyle.Render("Config: " + m.updater.configPath))
 		b.WriteString("\n")
+		b.WriteString(dimStyle.Render("Version file: " + m.updater.versionFilePath))
+		b.WriteString("\n")
 		b.WriteString(dimStyle.Render("Working directory: " + m.updater.rootDir))
 		b.WriteString("\n\n")
 	}
@@ -890,7 +908,7 @@ func (m model) View() string {
 
 func runUpdate(cmd *cobra.Command, args []string) error {
 	// Create version updater
-	updater, err := NewVersionUpdater(configPath, dryRun)
+	updater, err := NewVersionUpdater(configPath, versionFile, dryRun)
 	if err != nil {
 		return fmt.Errorf("failed to initialize: %w", err)
 	}

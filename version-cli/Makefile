@@ -1,7 +1,7 @@
 # FormsFlow.ai Version Update Tool - Go Edition
 # Production-ready Makefile for building cross-platform binaries
 
-.PHONY: build clean install test help release checksums
+.PHONY: build clean install uninstall test help release checksums
 
 # Variables
 APP_NAME = formsflow-version-updater
@@ -84,11 +84,18 @@ checksums: build-all
 	@cd $(BUILD_DIR) && sha256sum * > ../checksums.txt
 	@echo "✅ Checksums generated: checksums.txt"
 
-# Install to system PATH (Unix-like systems only)
+# Install to system PATH as 'ff-version' command (Unix-like systems only)
 install: build
-	@echo "📦 Installing $(APP_NAME) to /usr/local/bin..."
-	@sudo cp $(BUILD_DIR)/$(APP_NAME) /usr/local/bin/
-	@echo "✅ Installed successfully!"
+	@echo "📦 Installing $(APP_NAME) as 'ff-version' command to /usr/local/bin..."
+	@sudo cp $(BUILD_DIR)/$(APP_NAME) /usr/local/bin/ff-version
+	@sudo chmod +x /usr/local/bin/ff-version
+	@echo "✅ Installed successfully! Use 'ff-version' command to run the tool."
+
+# Uninstall from system PATH
+uninstall:
+	@echo "🗑️  Uninstalling 'ff-version' command from /usr/local/bin..."
+	@sudo rm -f /usr/local/bin/ff-version
+	@echo "✅ Uninstalled successfully!"
 
 # Clean build artifacts
 clean:
@@ -167,7 +174,8 @@ help:
 	@echo "📦 RELEASE TARGETS:"
 	@echo "  release       - Create production release with checksums"
 	@echo "  checksums     - Generate SHA256 checksums for all binaries"
-	@echo "  install       - Install to system PATH (requires sudo)"
+	@echo "  install       - Install as 'ff-version' command to system PATH (requires sudo)"
+	@echo "  uninstall     - Remove 'ff-version' command from system PATH (requires sudo)"
 	@echo ""
 	@echo "🧪 QUALITY TARGETS:"
 	@echo "  test          - Run tests with race detection"
@@ -187,4 +195,5 @@ help:
 	@echo "  make release                  # Full production release"
 	@echo "  make build-all && make checksums  # Build all + verify"
 	@echo "  make lint test security       # Full quality check"
+	@echo "  make install                  # Build and install as 'ff-version' command"
 	@echo "  make fmt && make build        # Format and build" 
