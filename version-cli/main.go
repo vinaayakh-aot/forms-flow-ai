@@ -352,17 +352,31 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 			matches = filteredMatches
 		}
 
-		changes := len(matches)
-		if changes > 0 {
+		// Check if matches actually need updating (aren't already the target version)
+		var actualChanges int
+		var matchesToUpdate []Match
+		
+		for _, match := range matches {
+			regex := regexp.MustCompile(searchPattern)
+			replacement := regex.ReplaceAllString(match.Text, replaceTemplate)
+			
+			// Only count as a change if the replacement is different from the original
+			if replacement != match.Text {
+				actualChanges++
+				matchesToUpdate = append(matchesToUpdate, match)
+			}
+		}
+		
+		if actualChanges > 0 {
 			// Replace matches in reverse order to maintain positions
-			for i := len(matches) - 1; i >= 0; i-- {
-				match := matches[i]
+			for i := len(matchesToUpdate) - 1; i >= 0; i-- {
+				match := matchesToUpdate[i]
 				regex := regexp.MustCompile(searchPattern)
 				replacement := regex.ReplaceAllString(match.Text, replaceTemplate)
 				updatedContent = updatedContent[:match.Start] + replacement + updatedContent[match.End:]
 			}
 
-			totalChanges += changes
+			totalChanges += actualChanges
 		}
 	}
 
@@ -617,8 +631,20 @@ func (m model) View() string {
 
 	var b strings.Builder
 
-	// Header
-	b.WriteString(titleStyle.Render("🚀 FormsFlow.ai Version Updater"))
+	// Header with padding and version
+	b.WriteString("\n\n")
+	
+	// Create a beautiful header
+	headerTitle := "🚀 FormsFlow.ai Version Updater"
+	headerVersion := fmt.Sprintf("v%s", AppVersion)
+	
+	// Center the title and version
+	titleLine := titleStyle.Render(headerTitle)
+	versionLine := dimStyle.Render(headerVersion)
+	
+	b.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Width(60).Render(titleLine))
+	b.WriteString("\n")
+	b.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Width(60).Render(versionLine))
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("━", 60))
 	b.WriteString("\n\n")
@@ -680,7 +706,7 @@ func (m model) View() string {
 				} else if file.changes > 0 {
 					status = successStyle.Render(fmt.Sprintf("✓ %s (%d changes)", file.name, file.changes))
 				} else {
-					status = dimStyle.Render("○ " + file.name + " (no changes)")
+					status = dimStyle.Render("○ " + file.name + " (up to date)")
 				}
 			} else if i == m.currentFile {
 				status = infoStyle.Render("◐ " + file.name + " (processing...)")
@@ -699,18 +725,26 @@ func (m model) View() string {
 		b.WriteString(strings.Repeat("━", 60))
 		b.WriteString("\n\n")
 
+		// Count files that need changes
+		filesWithChanges := 0
+		for _, file := range m.files {
+			if file.processed && file.changes > 0 {
+				filesWithChanges++
+			}
+		}
+
 		if m.totalChanges > 0 {
 			if m.updater.dryRun {
 				summary := fmt.Sprintf("✅ Found %d changes across %d files", 
-					m.totalChanges, len(m.files))
+					m.totalChanges, filesWithChanges)
 				b.WriteString(boxStyle.Render(successStyle.Render(summary)))
 			} else {
 				summary := fmt.Sprintf("✅ Updated %d references across %d files", 
-					m.totalChanges, len(m.files))
+					m.totalChanges, filesWithChanges)
 				b.WriteString(boxStyle.Render(successStyle.Render(summary)))
 			}
 		} else {
-			summary := "✨ All versions are up to date"
+			summary := "✨ All versions are already up to date"
 			b.WriteString(boxStyle.Render(infoStyle.Render(summary)))
 		}
 		
@@ -753,25 +787,20 @@ func createFilesTable(m model) string {
 		{Title: "Status", Width: 15},
 	}
 
-	// Build rows
+	// Build rows - only show files that have changes or errors
 	var rows []table.Row
 	for _, file := range m.files {
-		if file.processed {
+		if file.processed && (file.changes > 0 || file.err != nil) {
 			statusText := "✓ Success"
-			statusStyle := successStyle
 			
 			if file.err != nil {
 				statusText = "✗ Error"
-				statusStyle = errorStyle
-			} else if file.changes == 0 {
-				statusText = "○ No changes"
-				statusStyle = dimStyle
 			}
 			
 			rows = append(rows, table.Row{
 				file.name,
 				fmt.Sprintf("%d", file.changes),
-				statusStyle.Render(statusText),
+				statusText,
 			})
 		}
 	}
@@ -790,7 +819,8 @@ func createFilesTable(m model) string {
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		BorderBottom(true).
-		Bold(false)
+		Bold(true).
+		Foreground(lipgloss.Color("#7C3AED"))
 	s.Selected = s.Selected.
 		Foreground(lipgloss.Color("229")).
 		Background(lipgloss.Color("57")).
@@ -821,23 +851,42 @@ func printFinalSummary(m model) {
 	fmt.Printf("%s %s\n", headerStyle.Render("Mode:"), modeStyle.Render(mode))
 	fmt.Println()
 	
+	// Count files that need changes
+	filesWithChanges := 0
+	filesAlreadyUpToDate := 0
+	for _, file := range m.files {
+		if file.processed {
+			if file.changes > 0 {
+				filesWithChanges++
+			} else if file.err == nil {
+				filesAlreadyUpToDate++
+			}
+		}
+	}
+	
 	// Results
 	if m.totalChanges > 0 {
 		if m.updater.dryRun {
 			fmt.Println(warningStyle.Render(fmt.Sprintf("📋 Would make %d changes across %d files", 
-				m.totalChanges, len(m.files))))
+				m.totalChanges, filesWithChanges)))
 			fmt.Println(dimStyle.Render("   Run without --dry-run to apply these changes"))
 		} else {
 			fmt.Println(successStyle.Render(fmt.Sprintf("✅ Successfully updated %d references across %d files", 
-				m.totalChanges, len(m.files))))
+				m.totalChanges, filesWithChanges)))
+		}
+		
+		if filesAlreadyUpToDate > 0 {
+			fmt.Println(dimStyle.Render(fmt.Sprintf("   %d files already up to date (skipped)", filesAlreadyUpToDate)))
 		}
 	} else {
-		fmt.Println(infoStyle.Render("ℹ️  No changes needed - all versions are already up to date"))
+		fmt.Println(infoStyle.Render("ℹ️  All versions are already up to date - no changes needed"))
 	}
 	
-	// Files table
-	fmt.Println()
-	fmt.Println(createFilesTable(m))
+	// Files table - only show if there are files with changes
+	if m.totalChanges > 0 {
+		fmt.Println()
+		fmt.Println(createFilesTable(m))
+	}
 
 	// Timing with progress bar
 	if !m.startTime.IsZero() && !m.completionTime.IsZero() {
