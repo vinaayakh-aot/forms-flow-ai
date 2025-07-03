@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -448,15 +449,16 @@ type FileStatus struct {
 
 // TUI Model
 type model struct {
-	updater      *VersionUpdater
-	files        []FileStatus
-	currentFile  int
-	totalChanges int
-	spinner      spinner.Model
-	progress     progress.Model
-	done         bool
-	err          error
-	startTime    time.Time
+	updater        *VersionUpdater
+	files          []FileStatus
+	currentFile    int
+	totalChanges   int
+	spinner        spinner.Model
+	progress       progress.Model
+	done           bool
+	err            error
+	startTime      time.Time
+	completionTime time.Time
 }
 
 func main() {
@@ -592,6 +594,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case processingCompleteMsg:
 		m.done = true
 		m.totalChanges = msg.totalChanges
+		m.completionTime = time.Now() // Record actual completion time
 		// Show completion message briefly, then auto-quit
 		return m, tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
 			return tea.Quit()
@@ -646,11 +649,21 @@ func (m model) View() string {
 		if progress > 1.0 {
 			progress = 1.0
 		}
+		
+		// Progress bar with detailed info
+		progressText := fmt.Sprintf("Progress: %d/%d files", m.currentFile, len(m.files))
+		b.WriteString(dimStyle.Render(progressText))
+		b.WriteString("\n")
 		b.WriteString(progressStyle.Render(m.progress.ViewAs(progress)))
 		b.WriteString("\n")
 		
 		if m.currentFile < len(m.files) {
 			b.WriteString(m.spinner.View() + " Processing: " + infoStyle.Render(m.files[m.currentFile].name))
+			b.WriteString("\n")
+			
+			// Show elapsed time during processing
+			elapsed := time.Since(m.startTime)
+			b.WriteString(dimStyle.Render(fmt.Sprintf("Elapsed: %v", elapsed.Round(time.Millisecond))))
 			b.WriteString("\n\n")
 		} else {
 			b.WriteString("🎉 Processing complete!\n\n")
@@ -680,14 +693,12 @@ func (m model) View() string {
 		}
 	}
 
-	// Summary
+	// Summary when done
 	if m.done {
 		b.WriteString("\n")
 		b.WriteString(strings.Repeat("━", 60))
 		b.WriteString("\n\n")
 
-		elapsed := time.Since(m.startTime)
-		
 		if m.totalChanges > 0 {
 			if m.updater.dryRun {
 				summary := fmt.Sprintf("✅ Found %d changes across %d files", 
@@ -703,8 +714,6 @@ func (m model) View() string {
 			b.WriteString(boxStyle.Render(infoStyle.Render(summary)))
 		}
 		
-		b.WriteString("\n")
-		b.WriteString(dimStyle.Render(fmt.Sprintf("Completed in %v", elapsed.Round(time.Millisecond))))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("🎉 Processing complete! Exiting..."))
 	}
@@ -733,6 +742,62 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// createFilesTable creates a beautiful table showing files and their changes
+func createFilesTable(m model) string {
+	// Define columns
+	columns := []table.Column{
+		{Title: "File", Width: 40},
+		{Title: "Changes", Width: 10},
+		{Title: "Status", Width: 15},
+	}
+
+	// Build rows
+	var rows []table.Row
+	for _, file := range m.files {
+		if file.processed {
+			statusText := "✓ Success"
+			statusStyle := successStyle
+			
+			if file.err != nil {
+				statusText = "✗ Error"
+				statusStyle = errorStyle
+			} else if file.changes == 0 {
+				statusText = "○ No changes"
+				statusStyle = dimStyle
+			}
+			
+			rows = append(rows, table.Row{
+				file.name,
+				fmt.Sprintf("%d", file.changes),
+				statusStyle.Render(statusText),
+			})
+		}
+	}
+
+	// Create and configure table
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(false),
+		table.WithHeight(len(rows)),
+	)
+
+	// Style the table
+	s := table.DefaultStyles()
+	s.Header = s.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		BorderBottom(true).
+		Bold(false)
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.Color("57")).
+		Bold(false)
+	t.SetStyles(s)
+
+	return t.View()
 }
 
 // Print a nice summary after the TUI exits
@@ -770,32 +835,21 @@ func printFinalSummary(m model) {
 		fmt.Println(infoStyle.Render("ℹ️  No changes needed - all versions are already up to date"))
 	}
 	
-	// Files processed
+	// Files table
 	fmt.Println()
-	fmt.Println(dimStyle.Render("Files processed:"))
-	for _, file := range m.files {
-		if file.processed {
-			if file.err != nil {
-				fmt.Printf("  %s %s\n", errorStyle.Render("✗"), dimStyle.Render(file.name+" (error)"))
-			} else if file.changes > 0 {
-				fmt.Printf("  %s %s %s\n", 
-					successStyle.Render("✓"), 
-					file.name,
-					dimStyle.Render(fmt.Sprintf("(%d changes)", file.changes)))
-			} else {
-				fmt.Printf("  %s %s %s\n", 
-					dimStyle.Render("○"), 
-					dimStyle.Render(file.name),
-					dimStyle.Render("(no changes)"))
-			}
-		}
-	}
-	
-	// Timing
-	if !m.startTime.IsZero() {
-		elapsed := time.Since(m.startTime)
+	fmt.Println(createFilesTable(m))
+
+	// Timing with progress bar
+	if !m.startTime.IsZero() && !m.completionTime.IsZero() {
+		elapsed := m.completionTime.Sub(m.startTime)
 		fmt.Println()
+		
+		// Create a temporary progress bar for completion display
+		completionProgress := progress.New(progress.WithDefaultGradient())
+		
+		// Show 100% completion with timing
 		fmt.Println(dimStyle.Render(fmt.Sprintf("Completed in %v", elapsed.Round(time.Millisecond))))
+		fmt.Println(progressStyle.Render(completionProgress.ViewAs(1.0))) // 100% complete
 	}
 	
 	fmt.Println(strings.Repeat("═", 60))
