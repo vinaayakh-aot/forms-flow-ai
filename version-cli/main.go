@@ -8,8 +8,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
-	"github.com/fatih/color"
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
@@ -289,18 +293,10 @@ func (v *VersionUpdater) createPatternFromSimple(update UpdateConfig, versionPat
 
 // updateFile updates a single file using the simple configuration format
 func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
-	fileName := fileConfig.Name
-	if fileName == "" {
-		fileName = fileConfig.Path
-	}
-
 	filePath := filepath.Join(v.rootDir, fileConfig.Path)
 
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		if verbose {
-			warningColor.Printf("  File not found: %s\n", fileConfig.Path)
-		}
 		return 0, nil
 	}
 
@@ -316,19 +312,11 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 	versionPatterns := v.expandVersionPatterns()
 
 	for _, update := range fileConfig.Updates {
-		description := update.Description
-		if description == "" {
-			description = "No description"
-		}
-
 		searchPattern, replaceTemplate := v.createPatternFromSimple(update, versionPatterns)
 
 		// Find all matches
 		allMatches, err := v.findMatches(updatedContent, searchPattern)
 		if err != nil {
-			if verbose {
-				errorColor.Printf("  Pattern error in '%s': %v\n", description, err)
-			}
 			continue
 		}
 
@@ -337,19 +325,12 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 		// Apply exclusions if specified
 		if len(update.Exclude) > 0 {
 			matches = v.applyExclusions(updatedContent, matches, update.Exclude)
-			excludedCount := len(allMatches) - len(matches)
-			if excludedCount > 0 && verbose {
-				dimColor.Printf("  Excluded %d matches due to exclusion rules\n", excludedCount)
-			}
 		}
 
 		// Apply context filtering if specified
 		if update.Context != nil {
 			contextMatches, err := v.applyContextFiltering(updatedContent, searchPattern, update.Context)
 			if err != nil {
-				if verbose {
-					errorColor.Printf("  Context filtering error in '%s': %v\n", description, err)
-				}
 				continue
 			}
 
@@ -381,9 +362,6 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 			}
 
 			totalChanges += changes
-			if verbose {
-				successColor.Printf("  ✓ %s (%d matches)\n", description, changes)
-			}
 		}
 	}
 
@@ -392,97 +370,14 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 		if err := ioutil.WriteFile(filePath, []byte(updatedContent), 0644); err != nil {
 			return 0, fmt.Errorf("error writing %s: %w", fileConfig.Path, err)
 		}
-		if verbose {
-			successColor.Printf("  Updated %s (%d changes)\n", fileName, totalChanges)
-		}
 	}
 
 	return totalChanges, nil
 }
 
-// updateAllFiles updates all files specified in the configuration
-func (v *VersionUpdater) updateAllFiles() error {
-	// Header
-	headerColor.Printf("FormsFlow.ai Version Updater\n")
-	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-	
-	// Basic info
-	fmt.Printf("Version: %s\n", infoColor.Sprint(v.currentVersion))
-	if v.dryRun {
-		warningColor.Printf("Mode: DRY RUN (preview only)\n")
-	} else {
-		infoColor.Printf("Mode: APPLY CHANGES\n")
-	}
-	
-	if verbose {
-		dimColor.Printf("Config: %s\n", v.configPath)
-		dimColor.Printf("Working directory: %s\n", v.rootDir)
-	}
-	
-	fmt.Println()
-
-	// Show version patterns in verbose mode
-	if verbose {
-		versionPatterns := v.expandVersionPatterns()
-		if len(versionPatterns) > 0 {
-			dimColor.Printf("Version patterns:\n")
-			for name, value := range versionPatterns {
-				dimColor.Printf("  %s: %s\n", name, value)
-			}
-			fmt.Println()
-		}
-	}
-
-	totalChanges := 0
-	fileCount := len(v.config.Files)
-	processedCount := 0
-
-	// Simple progress indicator
-	if !verbose {
-		fmt.Printf("Processing %d files...\n", fileCount)
-	}
-
-	for _, fileConfig := range v.config.Files {
-		fileName := fileConfig.Name
-		if fileName == "" {
-			fileName = fileConfig.Path
-		}
-
-		processedCount++
-		
-		if verbose {
-			infoColor.Printf("Processing [%d/%d]: %s\n", processedCount, fileCount, fileName)
-		}
-
-		changes, err := v.updateFile(fileConfig)
-		if err != nil {
-			return err
-		}
-		totalChanges += changes
-		
-		if !verbose && changes > 0 {
-			successColor.Printf("✓ %s (%d changes)\n", fileName, changes)
-		}
-	}
-
-	if !verbose {
-		fmt.Println()
-	}
-
-	// Summary
-	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-	if totalChanges > 0 {
-		if v.dryRun {
-			warningColor.Printf("DRY RUN: Would make %d changes across %d files\n", totalChanges, fileCount)
-			fmt.Printf("Run without --dry-run to apply changes.\n")
-		} else {
-			successColor.Printf("SUCCESS: Updated %d references across %d files\n", totalChanges, fileCount)
-		}
-	} else {
-		infoColor.Printf("No changes needed - all versions are already up to date\n")
-	}
-
-	return nil
+// getVersionPatterns returns the expanded version patterns (used by TUI)
+func (v *VersionUpdater) getVersionPatterns() map[string]string {
+	return v.expandVersionPatterns()
 }
 
 var (
@@ -492,15 +387,77 @@ var (
 	verbose    bool
 )
 
-// Colors for consistent output
+// Styles using lipgloss
 var (
-	successColor = color.New(color.FgGreen, color.Bold)
-	errorColor   = color.New(color.FgRed, color.Bold)
-	warningColor = color.New(color.FgYellow, color.Bold)
-	infoColor    = color.New(color.FgBlue)
-	headerColor  = color.New(color.FgCyan, color.Bold)
-	dimColor     = color.New(color.FgHiBlack)
+	titleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#04B575")).
+			Bold(true).
+			Padding(0, 1)
+
+	headerStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#7C3AED")).
+			Bold(true).
+			Margin(1, 0)
+
+	infoStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#0EA5E9"))
+
+	successStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#10B981")).
+			Bold(true)
+
+	warningStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#F59E0B")).
+			Bold(true)
+
+	errorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#EF4444")).
+			Bold(true)
+
+	dimStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#6B7280"))
+
+	boxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			Padding(1, 2).
+			Margin(1, 0)
+
+	progressStyle = lipgloss.NewStyle().
+			Margin(1, 0)
 )
+
+// Messages for Bubble Tea
+type startProcessingMsg struct{}
+type fileProcessedMsg struct {
+	fileName string
+	changes  int
+	err      error
+}
+type processingCompleteMsg struct {
+	totalChanges int
+	totalFiles   int
+}
+
+// FileStatus represents the processing status of a file
+type FileStatus struct {
+	name      string
+	processed bool
+	changes   int
+	err       error
+}
+
+// TUI Model
+type model struct {
+	updater      *VersionUpdater
+	files        []FileStatus
+	currentFile  int
+	totalChanges int
+	spinner      spinner.Model
+	progress     progress.Model
+	done         bool
+	err          error
+	startTime    time.Time
+}
 
 func main() {
 	var rootCmd = &cobra.Command{
@@ -530,9 +487,229 @@ configured files across the repository to maintain version consistency.`,
   formsflow-version-updater --config my-config.json`
 
 	if err := rootCmd.Execute(); err != nil {
-		errorColor.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", errorStyle.Render("Error: "+err.Error()))
 		os.Exit(1)
 	}
+}
+
+// Initialize the model
+func initialModel(updater *VersionUpdater) model {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
+	p := progress.New(progress.WithDefaultGradient())
+
+	// Initialize file statuses
+	files := make([]FileStatus, len(updater.config.Files))
+	for i, fileConfig := range updater.config.Files {
+		name := fileConfig.Name
+		if name == "" {
+			name = fileConfig.Path
+		}
+		files[i] = FileStatus{
+			name:      name,
+			processed: false,
+			changes:   0,
+			err:       nil,
+		}
+	}
+
+	return model{
+		updater:   updater,
+		files:     files,
+		spinner:   s,
+		progress:  p,
+		startTime: time.Now(),
+	}
+}
+
+// Init command for Bubble Tea
+func (m model) Init() tea.Cmd {
+	return tea.Batch(m.spinner.Tick, startProcessing)
+}
+
+// Start processing command
+func startProcessing() tea.Msg {
+	return startProcessingMsg{}
+}
+
+// Process a single file asynchronously
+func (m model) processNextFile() tea.Cmd {
+	if m.currentFile >= len(m.updater.config.Files) {
+		return func() tea.Msg {
+			return processingCompleteMsg{
+				totalChanges: m.totalChanges,
+				totalFiles:   len(m.updater.config.Files),
+			}
+		}
+	}
+
+	fileConfig := m.updater.config.Files[m.currentFile]
+	fileName := fileConfig.Name
+	if fileName == "" {
+		fileName = fileConfig.Path
+	}
+
+	return func() tea.Msg {
+		// Small delay for visual effect
+		time.Sleep(300 * time.Millisecond)
+		
+		changes, err := m.updater.updateFile(fileConfig)
+		
+		return fileProcessedMsg{
+			fileName: fileName,
+			changes:  changes,
+			err:      err,
+		}
+	}
+}
+
+// Update function for Bubble Tea
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			return m, tea.Quit
+		}
+
+	case startProcessingMsg:
+		return m, m.processNextFile()
+
+	case fileProcessedMsg:
+		// Update file status
+		if m.currentFile < len(m.files) {
+			m.files[m.currentFile].processed = true
+			m.files[m.currentFile].changes = msg.changes
+			m.files[m.currentFile].err = msg.err
+			m.totalChanges += msg.changes
+			m.currentFile++
+
+			return m, m.processNextFile()
+		}
+
+	case processingCompleteMsg:
+		m.done = true
+		m.totalChanges = msg.totalChanges
+		// Show completion message briefly, then auto-quit
+		return m, tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
+			return tea.Quit()
+		})
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// View function for Bubble Tea
+func (m model) View() string {
+	if m.err != nil {
+		return errorStyle.Render("Error: " + m.err.Error())
+	}
+
+	var b strings.Builder
+
+	// Header
+	b.WriteString(titleStyle.Render("🚀 FormsFlow.ai Version Updater"))
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("━", 60))
+	b.WriteString("\n\n")
+
+	// Version info
+	b.WriteString(headerStyle.Render("Version: ") + infoStyle.Render(m.updater.currentVersion))
+	b.WriteString("\n")
+	
+	mode := "APPLY CHANGES"
+	modeStyle := successStyle
+	if m.updater.dryRun {
+		mode = "DRY RUN (preview only)"
+		modeStyle = warningStyle
+	}
+	b.WriteString(headerStyle.Render("Mode: ") + modeStyle.Render(mode))
+	b.WriteString("\n\n")
+
+	if verbose {
+		b.WriteString(dimStyle.Render("Config: " + m.updater.configPath))
+		b.WriteString("\n")
+		b.WriteString(dimStyle.Render("Working directory: " + m.updater.rootDir))
+		b.WriteString("\n\n")
+	}
+
+	// Progress
+	if !m.done {
+		progress := float64(m.currentFile) / float64(len(m.files))
+		if progress > 1.0 {
+			progress = 1.0
+		}
+		b.WriteString(progressStyle.Render(m.progress.ViewAs(progress)))
+		b.WriteString("\n")
+		
+		if m.currentFile < len(m.files) {
+			b.WriteString(m.spinner.View() + " Processing: " + infoStyle.Render(m.files[m.currentFile].name))
+			b.WriteString("\n\n")
+		} else {
+			b.WriteString("🎉 Processing complete!\n\n")
+		}
+	}
+
+	// File statuses
+	for i, file := range m.files {
+		if i <= m.currentFile {
+			var status string
+			if file.processed {
+				if file.err != nil {
+					status = errorStyle.Render("✗ " + file.name + " (error)")
+				} else if file.changes > 0 {
+					status = successStyle.Render(fmt.Sprintf("✓ %s (%d changes)", file.name, file.changes))
+				} else {
+					status = dimStyle.Render("○ " + file.name + " (no changes)")
+				}
+			} else if i == m.currentFile {
+				status = infoStyle.Render("◐ " + file.name + " (processing...)")
+			}
+			
+			if status != "" {
+				b.WriteString("  " + status)
+				b.WriteString("\n")
+			}
+		}
+	}
+
+	// Summary
+	if m.done {
+		b.WriteString("\n")
+		b.WriteString(strings.Repeat("━", 60))
+		b.WriteString("\n\n")
+
+		elapsed := time.Since(m.startTime)
+		
+		if m.totalChanges > 0 {
+			if m.updater.dryRun {
+				summary := fmt.Sprintf("✅ Found %d changes across %d files", 
+					m.totalChanges, len(m.files))
+				b.WriteString(boxStyle.Render(successStyle.Render(summary)))
+			} else {
+				summary := fmt.Sprintf("✅ Updated %d references across %d files", 
+					m.totalChanges, len(m.files))
+				b.WriteString(boxStyle.Render(successStyle.Render(summary)))
+			}
+		} else {
+			summary := "✨ All versions are up to date"
+			b.WriteString(boxStyle.Render(infoStyle.Render(summary)))
+		}
+		
+		b.WriteString("\n")
+		b.WriteString(dimStyle.Render(fmt.Sprintf("Completed in %v", elapsed.Round(time.Millisecond))))
+		b.WriteString("\n\n")
+		b.WriteString(dimStyle.Render("🎉 Processing complete! Exiting..."))
+	}
+
+	return b.String()
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
@@ -542,6 +719,85 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize: %w", err)
 	}
 
-	// Update all files
-	return updater.updateAllFiles()
+	// Initialize and run Bubble Tea program (without alt screen)
+	p := tea.NewProgram(initialModel(updater))
+	
+	finalModel, err := p.Run()
+	if err != nil {
+		return fmt.Errorf("failed to run TUI: %w", err)
+	}
+
+	// Print final summary after TUI exits
+	if m, ok := finalModel.(model); ok {
+		printFinalSummary(m)
+	}
+
+	return nil
+}
+
+// Print a nice summary after the TUI exits
+func printFinalSummary(m model) {
+	fmt.Println()
+	fmt.Println(strings.Repeat("═", 60))
+	
+	// Header
+	fmt.Println(titleStyle.Render("🎉 FormsFlow.ai Version Update Complete"))
+	fmt.Println()
+	
+	// Summary info
+	fmt.Printf("%s %s\n", headerStyle.Render("Version Updated:"), infoStyle.Render(m.updater.currentVersion))
+	
+	mode := "APPLIED CHANGES"
+	modeStyle := successStyle
+	if m.updater.dryRun {
+		mode = "DRY RUN COMPLETED"
+		modeStyle = warningStyle
+	}
+	fmt.Printf("%s %s\n", headerStyle.Render("Mode:"), modeStyle.Render(mode))
+	fmt.Println()
+	
+	// Results
+	if m.totalChanges > 0 {
+		if m.updater.dryRun {
+			fmt.Println(warningStyle.Render(fmt.Sprintf("📋 Would make %d changes across %d files", 
+				m.totalChanges, len(m.files))))
+			fmt.Println(dimStyle.Render("   Run without --dry-run to apply these changes"))
+		} else {
+			fmt.Println(successStyle.Render(fmt.Sprintf("✅ Successfully updated %d references across %d files", 
+				m.totalChanges, len(m.files))))
+		}
+	} else {
+		fmt.Println(infoStyle.Render("ℹ️  No changes needed - all versions are already up to date"))
+	}
+	
+	// Files processed
+	fmt.Println()
+	fmt.Println(dimStyle.Render("Files processed:"))
+	for _, file := range m.files {
+		if file.processed {
+			if file.err != nil {
+				fmt.Printf("  %s %s\n", errorStyle.Render("✗"), dimStyle.Render(file.name+" (error)"))
+			} else if file.changes > 0 {
+				fmt.Printf("  %s %s %s\n", 
+					successStyle.Render("✓"), 
+					file.name,
+					dimStyle.Render(fmt.Sprintf("(%d changes)", file.changes)))
+			} else {
+				fmt.Printf("  %s %s %s\n", 
+					dimStyle.Render("○"), 
+					dimStyle.Render(file.name),
+					dimStyle.Render("(no changes)"))
+			}
+		}
+	}
+	
+	// Timing
+	if !m.startTime.IsZero() {
+		elapsed := time.Since(m.startTime)
+		fmt.Println()
+		fmt.Println(dimStyle.Render(fmt.Sprintf("Completed in %v", elapsed.Round(time.Millisecond))))
+	}
+	
+	fmt.Println(strings.Repeat("═", 60))
+	fmt.Println()
 } 

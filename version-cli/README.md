@@ -16,13 +16,13 @@ The version update tool is available in both **Go** and **Python** versions. The
 # Build the binary once
 cd version-cli && make build
 
-# Preview changes (clean output)
+# Preview changes with beautiful TUI
 ./version-cli/bin/formsflow-version-updater --dry-run
 
 # Preview with detailed information
 ./version-cli/bin/formsflow-version-updater --dry-run --verbose
 
-# Apply updates
+# Apply updates with interactive interface
 ./version-cli/bin/formsflow-version-updater
 
 # Apply with detailed output
@@ -67,39 +67,42 @@ The Go version (`main.go`) provides the same functionality as the Python version
 - **🌍 Cross-Platform**: Pre-built binaries for Linux, Windows, and macOS
 - **📦 Easy Deployment**: Works anywhere without Python/pip installation
 - **🔧 Same Config**: Uses the exact same `config-simple.json` format
-- **🎨 Clean Output**: Professional CLI interface with colored output and clean formatting
-- **📊 Two Modes**: Clean summary mode or detailed verbose mode
+- **✨ Beautiful TUI**: Interactive terminal interface with Bubble Tea framework
+- **🎨 Rich Styling**: Colorful, modern interface with progress bars and animations
+- **🔄 Real-time Updates**: Live file processing status with visual feedback
+- **⌨️ Interactive**: Keyboard controls (q/Ctrl+C to quit) with auto-exit timer
 
-### Clean Output Format
+### Beautiful Interactive TUI
 
-The Go version provides a much cleaner, professional output:
+The Go version features a stunning interactive terminal interface built with Bubble Tea:
 
-**Standard Mode (Clean Summary):**
-```
-FormsFlow.ai Version Updater
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Version: v7.1.0-alpha
-Mode: DRY RUN (preview only)
+**🎯 Features:**
+- **Live Progress Bar**: Real-time visual progress as files are processed
+- **Animated Spinner**: Smooth loading animations during file processing
+- **Color-Coded Status**: Green for success, yellow for warnings, red for errors
+- **File-by-File Updates**: Watch each file get processed in real-time
+- **Elegant Styling**: Modern colors, rounded borders, and clean typography
+- **Auto-Exit Timer**: Automatically closes after 3 seconds or wait for user input
 
-Processing 7 files...
-✓ Docker Compose - Main Deployment (7 changes)
-✓ Environment Sample Files (7 changes)
-✓ Web Root Config Docker Compose (7 changes)
-✓ Web Root Config Sample Environment (7 changes)
-✓ HTML Template (1 changes)
-✓ NPM Package Definition (1 changes)
-✓ NPM Lock File (2 changes)
+**📱 Interactive Elements:**
+- Progress bar showing completion percentage
+- Spinning indicator for active processing
+- Live status updates for each file (processing → completed)
+- Real-time change counter
+- Keyboard shortcuts (q/Ctrl+C to quit early)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DRY RUN: Would make 32 changes across 7 files
-Run without --dry-run to apply changes.
-```
+**🎨 Visual Hierarchy:**
+- Beautiful header with app title and version
+- Clear mode indicators (DRY RUN vs APPLY CHANGES)
+- Structured file processing list with status icons
+- Elegant summary box with rounded borders
+- Professional color scheme with semantic meaning
 
-**Verbose Mode (Detailed Information):**
+**Verbose Mode Benefits:**
 - Shows configuration paths and version patterns
-- Displays detailed match information for each update rule
-- Shows exclusion rule activity
+- Displays working directory information
 - Perfect for debugging configuration issues
+- Same beautiful interface with additional details
 
 ### Quick Build Commands
 
@@ -495,15 +498,21 @@ This directory contains multiple version update tools:
 | `Makefile` | Build commands for Go version | Build | ⭐ **Yes** |
 
 ### Recommendation
-- **New users**: Build with `make build` then run `./version-cli/bin/formsflow-version-updater --dry-run`
-- **Python users**: Use `python version-cli/update-versions-simple.py`
-- **Advanced users**: Customize `config-simple.json` or use `config.json` for complex patterns
+- **🌟 New users**: Build with `make build` then enjoy the beautiful TUI with `./version-cli/bin/formsflow-version-updater --dry-run`
+- **🐍 Python users**: Use `python version-cli/update-versions-simple.py`
+- **⚙️ Advanced users**: Customize `config-simple.json` or use `config.json` for complex patterns
+- **🎯 Best experience**: Use the Go version for the stunning interactive interface!
 
 ## Dependencies
 
-### Go Version
+### Go Version (Bubble Tea TUI)
 - Go 1.19+ (for building from source)
-- No runtime dependencies once built
+- **Build Dependencies:**
+  - `github.com/charmbracelet/bubbletea` - TUI framework
+  - `github.com/charmbracelet/bubbles` - TUI components (progress, spinner)
+  - `github.com/charmbracelet/lipgloss` - Styling and layout
+  - `github.com/spf13/cobra` - CLI framework
+- **Runtime:** Single binary with no dependencies once built
 
 ### Python Version  
 - Python 3.7+
@@ -515,6 +524,13 @@ This directory contains multiple version update tools:
 - **v1.1**: Added exclusion feature and context filtering
 - **v1.2**: Added simplified configuration format (`config-simple.json`)
 - **v2.0**: Go version implementation with improved performance
+- **v3.0**: 🎉 **Beautiful Bubble Tea TUI Implementation**
+  - Interactive terminal interface with real-time updates
+  - Animated progress bars and spinners
+  - Color-coded status indicators
+  - Modern styling with lipgloss
+  - Auto-exit timer and keyboard controls
+  - Professional visual hierarchy
 - Support for regex and string replacement patterns
 - Configurable file and pattern definitions
 - Dry-run mode for safe testing 
