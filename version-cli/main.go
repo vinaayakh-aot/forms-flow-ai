@@ -652,11 +652,11 @@ func (m model) View() string {
 	// Add processing phase header
 	b.WriteString(headerStyle.Render("🔍 LIVE PROCESSING"))
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("   Scanning and analyzing files in real-time"))
+	b.WriteString(dimStyle.Render("   Scanning configuration files for version references"))
 	b.WriteString("\n\n")
 	
 	// Version info
-	b.WriteString(headerStyle.Render("Version: ") + infoStyle.Render(m.updater.currentVersion))
+	b.WriteString(headerStyle.Render("Target Version: ") + infoStyle.Render(m.updater.currentVersion))
 	b.WriteString("\n")
 	
 	mode := "APPLY CHANGES"
@@ -712,7 +712,7 @@ func (m model) View() string {
 				} else if file.changes > 0 {
 					status = successStyle.Render(fmt.Sprintf("✓ %s (%d changes)", file.name, file.changes))
 				} else {
-					status = dimStyle.Render("○ " + file.name + " (up to date)")
+					status = dimStyle.Render("○ " + file.name + " (already synchronized)")
 				}
 			} else if i == m.currentFile {
 				status = infoStyle.Render("◐ " + file.name + " (processing...)")
@@ -732,34 +732,54 @@ func (m model) View() string {
 		b.WriteString("\n\n")
 
 		// Add section header to clarify this is the processing summary
-		b.WriteString(headerStyle.Render("📊 PROCESSING SUMMARY"))
+		b.WriteString(headerStyle.Render("📊 SCAN RESULTS"))
 		b.WriteString("\n\n")
 
 		// Count files that need changes
 		filesWithChanges := 0
+		filesUpToDate := 0
 		for _, file := range m.files {
-			if file.processed && file.changes > 0 {
-				filesWithChanges++
+			if file.processed {
+				if file.changes > 0 {
+					filesWithChanges++
+				} else if file.err == nil {
+					filesUpToDate++
+				}
 			}
 		}
 
+		// Create stats box
+		var statsBox strings.Builder
+		statsBox.WriteString(fmt.Sprintf("Files Scanned: %d    │ References Found: %d\n", len(m.files), m.totalChanges))
+		statsBox.WriteString(fmt.Sprintf("Files to Update: %d   │ Files Up-to-date: %d\n", filesWithChanges, filesUpToDate))
+		statsBox.WriteString(fmt.Sprintf("Config: %s", filepath.Base(m.updater.configPath)))
+		
+		statsBoxStyle := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(1, 2).
+			Margin(0, 0, 1, 0)
+		
+		b.WriteString(statsBoxStyle.Render(statsBox.String()))
+		b.WriteString("\n")
+
 		if m.totalChanges > 0 {
 			if m.updater.dryRun {
-				summary := fmt.Sprintf("✅ Found %d changes across %d files", 
+				summary := fmt.Sprintf("✅ Found %d version references to update across %d files", 
 					m.totalChanges, filesWithChanges)
 				b.WriteString(boxStyle.Render(successStyle.Render(summary)))
 			} else {
-				summary := fmt.Sprintf("✅ Updated %d references across %d files", 
+				summary := fmt.Sprintf("✅ Updated %d version references across %d files", 
 					m.totalChanges, filesWithChanges)
 				b.WriteString(boxStyle.Render(successStyle.Render(summary)))
 			}
 		} else {
-			summary := "✨ All versions are already up to date"
+			summary := "✨ All versions are already synchronized"
 			b.WriteString(boxStyle.Render(infoStyle.Render(summary)))
 		}
 		
 		b.WriteString("\n\n")
-		b.WriteString(dimStyle.Render("🎉 Processing complete! Generating final report..."))
+		b.WriteString(dimStyle.Render("🎉 Scan complete! Generating final report..."))
 	}
 
 	return b.String()
@@ -847,21 +867,21 @@ func printFinalSummary(m model) {
 	
 	// Header with clear section identification
 	fmt.Println(titleStyle.Render("📋 FINAL SUMMARY REPORT"))
-	fmt.Println(dimStyle.Render("   Complete details of the version update operation"))
+	fmt.Println(dimStyle.Render("   Complete details of the version synchronization operation"))
 	fmt.Println()
-	fmt.Println(titleStyle.Render("🎉 FormsFlow.ai Version Update Complete"))
+	fmt.Println(titleStyle.Render("🎉 FormsFlow.ai Version Synchronization Complete"))
 	fmt.Println()
 	
 	// Summary info
-	fmt.Printf("%s %s\n", headerStyle.Render("Version Updated:"), infoStyle.Render(m.updater.currentVersion))
+	fmt.Printf("%s %s\n", headerStyle.Render("Target Version:"), infoStyle.Render(m.updater.currentVersion))
 	
-	mode := "APPLIED CHANGES"
+	mode := "CHANGES APPLIED"
 	modeStyle := successStyle
 	if m.updater.dryRun {
 		mode = "DRY RUN COMPLETED"
 		modeStyle = warningStyle
 	}
-	fmt.Printf("%s %s\n", headerStyle.Render("Mode:"), modeStyle.Render(mode))
+	fmt.Printf("%s %s\n", headerStyle.Render("Operation:"), modeStyle.Render(mode))
 	fmt.Println()
 	
 	// Count files that need changes
@@ -880,26 +900,49 @@ func printFinalSummary(m model) {
 	// Results
 	if m.totalChanges > 0 {
 		if m.updater.dryRun {
-			fmt.Println(warningStyle.Render(fmt.Sprintf("📋 Would make %d changes across %d files", 
+			fmt.Println(warningStyle.Render(fmt.Sprintf("📋 Would update %d version references across %d files", 
 				m.totalChanges, filesWithChanges)))
 			fmt.Println(dimStyle.Render("   Run without --dry-run to apply these changes"))
 		} else {
-			fmt.Println(successStyle.Render(fmt.Sprintf("✅ Successfully updated %d references across %d files", 
+			fmt.Println(successStyle.Render(fmt.Sprintf("✅ Successfully updated %d version references across %d files", 
 				m.totalChanges, filesWithChanges)))
 		}
 		
 		if filesAlreadyUpToDate > 0 {
-			fmt.Println(dimStyle.Render(fmt.Sprintf("   %d files already up to date (skipped)", filesAlreadyUpToDate)))
+			fmt.Println(dimStyle.Render(fmt.Sprintf("   %d files already synchronized (skipped)", filesAlreadyUpToDate)))
 		}
 	} else {
-		fmt.Println(infoStyle.Render("ℹ️  All versions are already up to date - no changes needed"))
+		fmt.Println(infoStyle.Render("ℹ️  All versions are already synchronized - no changes needed"))
 	}
 	
 	// Files table - only show if there are files with changes
 	if m.totalChanges > 0 {
 		fmt.Println()
-		fmt.Println(headerStyle.Render("📁 FILES TO BE UPDATED"))
+		if m.updater.dryRun {
+			fmt.Println(headerStyle.Render("📁 FILES TO BE UPDATED"))
+		} else {
+			fmt.Println(headerStyle.Render("📁 FILES UPDATED"))
+		}
 		fmt.Println(createFilesTable(m))
+	}
+
+	// Next steps section for dry run
+	if m.updater.dryRun && m.totalChanges > 0 {
+		fmt.Println()
+		fmt.Println(headerStyle.Render("🚀 NEXT STEPS"))
+		
+		nextStepsBox := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#F59E0B")).
+			Padding(1, 2).
+			Margin(0, 0, 1, 0)
+		
+		nextStepsText := fmt.Sprintf("Ready to apply changes!\n\nRun: %s\n\nThis will modify %d files with %d version updates", 
+			successStyle.Render("./bin/formsflow-version-updater"), 
+			filesWithChanges, 
+			m.totalChanges)
+		
+		fmt.Println(nextStepsBox.Render(nextStepsText))
 	}
 
 	// Timing with progress bar
