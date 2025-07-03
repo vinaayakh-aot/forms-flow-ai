@@ -16,11 +16,17 @@ The version update tool is available in both **Go** and **Python** versions. The
 # Build the binary once
 cd version-cli && make build
 
-# Preview changes (recommended first run)
+# Preview changes (clean output)
 ./version-cli/bin/formsflow-version-updater --dry-run
+
+# Preview with detailed information
+./version-cli/bin/formsflow-version-updater --dry-run --verbose
 
 # Apply updates
 ./version-cli/bin/formsflow-version-updater
+
+# Apply with detailed output
+./version-cli/bin/formsflow-version-updater --verbose
 
 # Use custom configuration
 ./version-cli/bin/formsflow-version-updater --config my-config.json
@@ -61,6 +67,39 @@ The Go version (`main.go`) provides the same functionality as the Python version
 - **🌍 Cross-Platform**: Pre-built binaries for Linux, Windows, and macOS
 - **📦 Easy Deployment**: Works anywhere without Python/pip installation
 - **🔧 Same Config**: Uses the exact same `config-simple.json` format
+- **🎨 Clean Output**: Professional CLI interface with colored output and clean formatting
+- **📊 Two Modes**: Clean summary mode or detailed verbose mode
+
+### Clean Output Format
+
+The Go version provides a much cleaner, professional output:
+
+**Standard Mode (Clean Summary):**
+```
+FormsFlow.ai Version Updater
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Version: v7.1.0-alpha
+Mode: DRY RUN (preview only)
+
+Processing 7 files...
+✓ Docker Compose - Main Deployment (7 changes)
+✓ Environment Sample Files (7 changes)
+✓ Web Root Config Docker Compose (7 changes)
+✓ Web Root Config Sample Environment (7 changes)
+✓ HTML Template (1 changes)
+✓ NPM Package Definition (1 changes)
+✓ NPM Lock File (2 changes)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DRY RUN: Would make 32 changes across 7 files
+Run without --dry-run to apply changes.
+```
+
+**Verbose Mode (Detailed Information):**
+- Shows configuration paths and version patterns
+- Displays detailed match information for each update rule
+- Shows exclusion rule activity
+- Perfect for debugging configuration issues
 
 ### Quick Build Commands
 

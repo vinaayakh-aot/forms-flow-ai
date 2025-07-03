@@ -2,18 +2,19 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 )
 
 // Version represents the current application version
-const AppVersion = "1.0.0"
+var AppVersion = "1.0.0"
 
 // Config represents the JSON configuration structure
 type Config struct {
@@ -297,14 +298,16 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		fmt.Printf("⚠️  File not found: %s\n", fileConfig.Path)
+		if verbose {
+			warningColor.Printf("  File not found: %s\n", fileConfig.Path)
+		}
 		return 0, nil
 	}
 
 	// Read file content
 	content, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return 0, fmt.Errorf("❌ Error reading %s: %w", fileConfig.Path, err)
+		return 0, fmt.Errorf("error reading %s: %w", fileConfig.Path, err)
 	}
 
 	originalContent := string(content)
@@ -323,7 +326,9 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 		// Find all matches
 		allMatches, err := v.findMatches(updatedContent, searchPattern)
 		if err != nil {
-			fmt.Printf("  ❌ Pattern error in '%s': %v\n", description, err)
+			if verbose {
+				errorColor.Printf("  Pattern error in '%s': %v\n", description, err)
+			}
 			continue
 		}
 
@@ -333,8 +338,8 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 		if len(update.Exclude) > 0 {
 			matches = v.applyExclusions(updatedContent, matches, update.Exclude)
 			excludedCount := len(allMatches) - len(matches)
-			if excludedCount > 0 {
-				fmt.Printf("  🚫 Excluded %d matches due to exclusion rules\n", excludedCount)
+			if excludedCount > 0 && verbose {
+				dimColor.Printf("  Excluded %d matches due to exclusion rules\n", excludedCount)
 			}
 		}
 
@@ -342,7 +347,9 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 		if update.Context != nil {
 			contextMatches, err := v.applyContextFiltering(updatedContent, searchPattern, update.Context)
 			if err != nil {
-				fmt.Printf("  ❌ Context filtering error in '%s': %v\n", description, err)
+				if verbose {
+					errorColor.Printf("  Context filtering error in '%s': %v\n", description, err)
+				}
 				continue
 			}
 
@@ -374,18 +381,20 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 			}
 
 			totalChanges += changes
-			fmt.Printf("  ✅ %s (%d matches)\n", description, changes)
+			if verbose {
+				successColor.Printf("  ✓ %s (%d matches)\n", description, changes)
+			}
 		}
 	}
 
 	// Write file if changes were made and not in dry-run mode
 	if totalChanges > 0 && !v.dryRun {
 		if err := ioutil.WriteFile(filePath, []byte(updatedContent), 0644); err != nil {
-			return 0, fmt.Errorf("❌ Error writing %s: %w", fileConfig.Path, err)
+			return 0, fmt.Errorf("error writing %s: %w", fileConfig.Path, err)
 		}
-		fmt.Printf("📝 Updated %s (%d changes)\n", fileName, totalChanges)
-	} else if totalChanges > 0 {
-		fmt.Printf("🔍 [DRY RUN] Would update %s (%d changes)\n", fileName, totalChanges)
+		if verbose {
+			successColor.Printf("  Updated %s (%d changes)\n", fileName, totalChanges)
+		}
 	}
 
 	return totalChanges, nil
@@ -393,25 +402,45 @@ func (v *VersionUpdater) updateFile(fileConfig FileConfig) (int, error) {
 
 // updateAllFiles updates all files specified in the configuration
 func (v *VersionUpdater) updateAllFiles() error {
-	fmt.Printf("🚀 Starting version update to: %s\n", v.currentVersion)
-	fmt.Printf("📁 Working directory: %s\n", v.rootDir)
-
+	// Header
+	headerColor.Printf("FormsFlow.ai Version Updater\n")
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	
+	// Basic info
+	fmt.Printf("Version: %s\n", infoColor.Sprint(v.currentVersion))
 	if v.dryRun {
-		fmt.Println("🔍 DRY RUN MODE - No files will be modified")
+		warningColor.Printf("Mode: DRY RUN (preview only)\n")
+	} else {
+		infoColor.Printf("Mode: APPLY CHANGES\n")
 	}
+	
+	if verbose {
+		dimColor.Printf("Config: %s\n", v.configPath)
+		dimColor.Printf("Working directory: %s\n", v.rootDir)
+	}
+	
+	fmt.Println()
 
-	fmt.Printf("📋 Using config: %s\n", v.configPath)
-
-	// Show expanded version patterns
-	versionPatterns := v.expandVersionPatterns()
-	if len(versionPatterns) > 0 {
-		fmt.Println("\n🔧 Version patterns:")
-		for name, value := range versionPatterns {
-			fmt.Printf("  %s: %s\n", name, value)
+	// Show version patterns in verbose mode
+	if verbose {
+		versionPatterns := v.expandVersionPatterns()
+		if len(versionPatterns) > 0 {
+			dimColor.Printf("Version patterns:\n")
+			for name, value := range versionPatterns {
+				dimColor.Printf("  %s: %s\n", name, value)
+			}
+			fmt.Println()
 		}
 	}
 
 	totalChanges := 0
+	fileCount := len(v.config.Files)
+	processedCount := 0
+
+	// Simple progress indicator
+	if !verbose {
+		fmt.Printf("Processing %d files...\n", fileCount)
+	}
 
 	for _, fileConfig := range v.config.Files {
 		fileName := fileConfig.Name
@@ -419,67 +448,100 @@ func (v *VersionUpdater) updateAllFiles() error {
 			fileName = fileConfig.Path
 		}
 
-		fmt.Printf("\n📄 Processing: %s\n", fileName)
+		processedCount++
+		
+		if verbose {
+			infoColor.Printf("Processing [%d/%d]: %s\n", processedCount, fileCount, fileName)
+		}
+
 		changes, err := v.updateFile(fileConfig)
 		if err != nil {
 			return err
 		}
 		totalChanges += changes
+		
+		if !verbose && changes > 0 {
+			successColor.Printf("✓ %s (%d changes)\n", fileName, changes)
+		}
 	}
 
-	if v.dryRun {
-		fmt.Printf("\n🔍 [DRY RUN] ✨ Update complete! Total changes: %d\n", totalChanges)
-		if totalChanges > 0 {
-			fmt.Println("Run without --dry-run to apply changes.")
+	if !verbose {
+		fmt.Println()
+	}
+
+	// Summary
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	if totalChanges > 0 {
+		if v.dryRun {
+			warningColor.Printf("DRY RUN: Would make %d changes across %d files\n", totalChanges, fileCount)
+			fmt.Printf("Run without --dry-run to apply changes.\n")
+		} else {
+			successColor.Printf("SUCCESS: Updated %d references across %d files\n", totalChanges, fileCount)
 		}
 	} else {
-		fmt.Printf("\n✨ Update complete! Total changes: %d\n", totalChanges)
+		infoColor.Printf("No changes needed - all versions are already up to date\n")
 	}
 
 	return nil
 }
 
+var (
+	// Global flags
+	dryRun     bool
+	configPath string
+	verbose    bool
+)
+
+// Colors for consistent output
+var (
+	successColor = color.New(color.FgGreen, color.Bold)
+	errorColor   = color.New(color.FgRed, color.Bold)
+	warningColor = color.New(color.FgYellow, color.Bold)
+	infoColor    = color.New(color.FgBlue)
+	headerColor  = color.New(color.FgCyan, color.Bold)
+	dimColor     = color.New(color.FgHiBlack)
+)
+
 func main() {
-	var (
-		dryRun     = flag.Bool("dry-run", false, "Preview changes without modifying files")
-		configPath = flag.String("config", "", "Path to configuration file (default: version-cli/config-simple.json)")
-		version    = flag.Bool("version", false, "Show version information")
-		help       = flag.Bool("help", false, "Show help information")
-	)
+	var rootCmd = &cobra.Command{
+		Use:   "formsflow-version-updater",
+		Short: "Update version references across FormsFlow.ai repository",
+		Long: `FormsFlow.ai Version Update Tool
 
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "FormsFlow.ai Version Update Tool (Go Edition) v%s\n\n", AppVersion)
-		fmt.Fprintf(os.Stderr, "This tool updates version references across the FormsFlow.ai repository\n")
-		fmt.Fprintf(os.Stderr, "based on the version specified in the VERSION file.\n\n")
-		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Options:\n")
-		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  %s --dry-run              # Preview changes\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s                        # Apply updates\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s --config my.json       # Use custom config\n", os.Args[0])
+This tool reads the version from the VERSION file and updates all
+configured files across the repository to maintain version consistency.`,
+		Version: AppVersion,
+		RunE:    runUpdate,
 	}
 
-	flag.Parse()
+	// Add flags
+	rootCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview changes without modifying files")
+	rootCmd.Flags().StringVar(&configPath, "config", "", "Path to configuration file")
+	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed output")
 
-	if *help {
-		flag.Usage()
-		return
+	// Add examples
+	rootCmd.Example = `  # Preview changes
+  formsflow-version-updater --dry-run
+
+  # Apply updates
+  formsflow-version-updater
+
+  # Use custom config
+  formsflow-version-updater --config my-config.json`
+
+	if err := rootCmd.Execute(); err != nil {
+		errorColor.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
+}
 
-	if *version {
-		fmt.Printf("FormsFlow.ai Version Update Tool v%s\n", AppVersion)
-		return
-	}
-
+func runUpdate(cmd *cobra.Command, args []string) error {
 	// Create version updater
-	updater, err := NewVersionUpdater(*configPath, *dryRun)
+	updater, err := NewVersionUpdater(configPath, dryRun)
 	if err != nil {
-		log.Fatalf("Failed to initialize version updater: %v", err)
+		return fmt.Errorf("failed to initialize: %w", err)
 	}
 
 	// Update all files
-	if err := updater.updateAllFiles(); err != nil {
-		log.Fatalf("Update failed: %v", err)
-	}
+	return updater.updateAllFiles()
 } 
