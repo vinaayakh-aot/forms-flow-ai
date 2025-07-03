@@ -649,6 +649,12 @@ func (m model) View() string {
 	b.WriteString(strings.Repeat("━", 60))
 	b.WriteString("\n\n")
 
+	// Add processing phase header
+	b.WriteString(headerStyle.Render("🔍 LIVE PROCESSING"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("   Scanning and analyzing files in real-time"))
+	b.WriteString("\n\n")
+	
 	// Version info
 	b.WriteString(headerStyle.Render("Version: ") + infoStyle.Render(m.updater.currentVersion))
 	b.WriteString("\n")
@@ -725,6 +731,10 @@ func (m model) View() string {
 		b.WriteString(strings.Repeat("━", 60))
 		b.WriteString("\n\n")
 
+		// Add section header to clarify this is the processing summary
+		b.WriteString(headerStyle.Render("📊 PROCESSING SUMMARY"))
+		b.WriteString("\n\n")
+
 		// Count files that need changes
 		filesWithChanges := 0
 		for _, file := range m.files {
@@ -749,7 +759,7 @@ func (m model) View() string {
 		}
 		
 		b.WriteString("\n\n")
-		b.WriteString(dimStyle.Render("🎉 Processing complete! Exiting..."))
+		b.WriteString(dimStyle.Render("🎉 Processing complete! Generating final report..."))
 	}
 
 	return b.String()
@@ -835,7 +845,10 @@ func printFinalSummary(m model) {
 	fmt.Println()
 	fmt.Println(strings.Repeat("═", 60))
 	
-	// Header
+	// Header with clear section identification
+	fmt.Println(titleStyle.Render("📋 FINAL SUMMARY REPORT"))
+	fmt.Println(dimStyle.Render("   Complete details of the version update operation"))
+	fmt.Println()
 	fmt.Println(titleStyle.Render("🎉 FormsFlow.ai Version Update Complete"))
 	fmt.Println()
 	
@@ -885,6 +898,7 @@ func printFinalSummary(m model) {
 	// Files table - only show if there are files with changes
 	if m.totalChanges > 0 {
 		fmt.Println()
+		fmt.Println(headerStyle.Render("📁 FILES TO BE UPDATED"))
 		fmt.Println(createFilesTable(m))
 	}
 
@@ -897,7 +911,8 @@ func printFinalSummary(m model) {
 		completionProgress := progress.New(progress.WithDefaultGradient())
 		
 		// Show 100% completion with timing
-		fmt.Println(dimStyle.Render(fmt.Sprintf("Completed in %v", elapsed.Round(time.Millisecond))))
+		fmt.Println(headerStyle.Render("⏱️  EXECUTION SUMMARY"))
+		fmt.Println(dimStyle.Render(fmt.Sprintf("Operation completed in %v", elapsed.Round(time.Millisecond))))
 		fmt.Println(progressStyle.Render(completionProgress.ViewAs(1.0))) // 100% complete
 	}
 	
