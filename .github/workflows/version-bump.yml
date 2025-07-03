@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0  # Full history needed for git operations
           token: ${{ secrets.GITHUB_TOKEN }}  # Explicit token for push operations
 
-      # Step 3: Validate VERSION file exists and get current version
+      # Step 2: Validate VERSION file exists and get current version
       - name: Validate VERSION file and get version
         id: get_version
         run: |
@@ -52,7 +52,7 @@ jobs:
           echo "📋 Current version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # Step 4: Check if version-bump branch already exists
+      # Step 3: Check if version-bump branch already exists
       - name: Check if version-bump branch exists
         id: check_branch
         run: |
@@ -76,7 +76,7 @@ jobs:
           echo "✅ Branch '$BRANCH' is available"
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
-      # Step 5: Verify the version updater CLI
+      # Step 4: Verify the version updater CLI
       - name: Verify version updater CLI
         run: |
           echo "🔧 Verifying version updater CLI..."
@@ -100,7 +100,7 @@ jobs:
           chmod +x formsflow-version-updater-linux-amd64
           echo "✅ CLI verification complete"
 
-      # Step 6: Run the version update script
+      # Step 5: Run the version update script
       - name: Run version update script
         run: |
           echo "🚀 Running version update across repository..."
@@ -113,7 +113,7 @@ jobs:
           
           echo "✅ Version updates applied"
 
-      # Step 7: Check if any changes were actually made
+      # Step 6: Check if any changes were actually made
       - name: Check for changes
         id: check_changes
         run: |
@@ -130,7 +130,7 @@ jobs:
             git diff --name-only
           fi
 
-      # Step 8: Create new branch and commit changes
+      # Step 7: Create new branch and commit changes
       - name: Create version-bump branch and commit changes
         if: steps.check_changes.outputs.changes_made == 'true'
         run: |
@@ -153,7 +153,7 @@ jobs:
           git push --set-upstream origin "${{ steps.check_branch.outputs.branch }}"
           echo "✅ Branch created and pushed successfully"
 
-      # Step 9: Create Pull Request
+      # Step 8: Create Pull Request
       - name: Create Pull Request
         if: steps.check_changes.outputs.changes_made == 'true'
         uses: peter-evans/create-pull-request@v6
@@ -190,7 +190,7 @@ jobs:
           delete-branch: false  # Keep branch for reference
           commit-message: "chore: version bump to ${{ steps.get_version.outputs.version }}"
 
-      # Step 10: Summary
+      # Step 9: Summary
       - name: Workflow Summary
         run: |
           echo "📊 Workflow Summary"
