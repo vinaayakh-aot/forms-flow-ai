@@ -18,13 +18,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version represents the current application version
-var AppVersion = "1.0.0"
+// Build information (set by linker flags)
+var (
+	AppVersion = "1.0.0"        // Application version
+	BuildTime  = "unknown"      // Build timestamp
+	GitCommit  = "unknown"      // Git commit hash
+	GitBranch  = "unknown"      // Git branch name
+)
 
 // Config represents the JSON configuration structure
 type Config struct {
 	VersionPatterns map[string]string `json:"version_patterns"`
 	Files           []FileConfig      `json:"files"`
+}
+
+// getPredefinedRegexPatterns returns commonly used regex patterns
+func getPredefinedRegexPatterns() map[string]string {
+	return map[string]string{
+		"ff_url_version_pattern":     "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+		"ff_json_version_pattern":    "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+\"",
+		"ff_docker_image_pattern":    "image: formsflow/forms-flow-forms:v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+		"ff_version_basic":           "[0-9]+\\.[0-9]+\\.[0-9]+",
+		"ff_version_with_prerelease": "[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+	}
 }
 
 // FileConfig represents a file to be updated
@@ -283,7 +299,13 @@ func (v *VersionUpdater) createPatternFromSimple(update UpdateConfig, versionPat
 	searchPattern := update.Find
 	replacePattern := update.Replace
 
-	// Expand pattern references like {{url_version}}
+	// Expand predefined regex pattern references (pattern names without {{}} syntax)
+	predefinedPatterns := getPredefinedRegexPatterns()
+	for patternName, patternValue := range predefinedPatterns {
+		searchPattern = strings.ReplaceAll(searchPattern, patternName, patternValue)
+	}
+
+	// Expand version pattern references like {{url_version}}
 	for patternName, patternValue := range versionPatterns {
 		placeholder := fmt.Sprintf("{{%s}}", patternName)
 		replacePattern = strings.ReplaceAll(replacePattern, placeholder, patternValue)
@@ -509,7 +531,8 @@ configured files across the repository to maintain version consistency.`,
 
 %s %s
 %s Enterprise-grade version synchronization tool
-%s Build date: %s
+%s Build: %s
+%s Commit: %s (%s)
 %s Copyright © 2024 FormsFlow.ai
 
 `,
@@ -520,7 +543,10 @@ configured files across the repository to maintain version consistency.`,
 		infoStyle.Render("v{{.Version}}"),
 		dimStyle.Render("📦"),
 		dimStyle.Render("📅"),
-		dimStyle.Render("2024"),
+		dimStyle.Render(BuildTime),
+		dimStyle.Render("🔗"),
+		dimStyle.Render(GitCommit),
+		dimStyle.Render(GitBranch),
 		dimStyle.Render("©"))
 	
 	rootCmd.SetVersionTemplate(versionTemplate)

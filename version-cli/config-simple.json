@@ -13,13 +13,13 @@
       "updates": [
         {
           "description": "Forms Flow Forms Docker image tag",
-          "find": "image: formsflow/forms-flow-forms:v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+          "find": "ff_docker_image_pattern",
           "replace": "image: formsflow/forms-flow-forms:{{docker_tag}}",
           "type": "regex"
         },
         {
           "description": "All microfrontend URLs (except NAV)",
-          "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+          "find": "ff_url_version_pattern",
           "replace": "{{url_version}}",
           "type": "regex",
           "exclude": ["MF_FORMSFLOW_NAV_URL"]
@@ -33,7 +33,7 @@
       "updates": [
         {
           "description": "Microfrontend URLs in comments",
-          "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+          "find": "ff_url_version_pattern",
           "replace": "{{url_version}}",
           "type": "regex"
         }
@@ -46,7 +46,7 @@
       "updates": [
         {
           "description": "Microfrontend URLs in build args",
-          "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+          "find": "ff_url_version_pattern",
           "replace": "{{url_version}}",
           "type": "regex"
         }
@@ -59,7 +59,7 @@
       "updates": [
         {
           "description": "Microfrontend URLs in environment variables",
-          "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+", 
+          "find": "ff_url_version_pattern", 
           "replace": "{{url_version}}",
           "type": "regex"
         }
@@ -72,7 +72,7 @@
       "updates": [
         {
           "description": "CSS theme version in stylesheet link",
-          "find": "@v[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+",
+          "find": "ff_url_version_pattern",
           "replace": "{{url_version}}",
           "type": "regex"
         }
@@ -85,7 +85,7 @@
       "updates": [
         {
           "description": "Main application version",
-          "find": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+\"",
+          "find": "ff_json_version_pattern",
           "replace": "\"version\": \"{{npm_version}}\"",
           "type": "regex",
           "context": {
@@ -101,7 +101,7 @@
       "updates": [
         {
           "description": "Root package version (first occurrence)",
-          "find": "\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+-[a-zA-Z0-9]+\"",
+          "find": "ff_json_version_pattern",
           "replace": "\"version\": \"{{npm_version}}\"",
           "type": "regex",
           "context": {
