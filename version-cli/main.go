@@ -502,6 +502,83 @@ configured files across the repository to maintain version consistency.`,
   # Use custom config
   formsflow-version-updater --config my-config.json`
 
+	// Customize version output
+	versionTemplate := fmt.Sprintf(`%s
+%s
+%s
+
+%s %s
+%s Enterprise-grade version synchronization tool
+%s Build date: %s
+%s Copyright © 2024 FormsFlow.ai
+
+`,
+		strings.Repeat("━", 50),
+		titleStyle.Render("🚀 FormsFlow.ai Version Updater"),
+		strings.Repeat("━", 50),
+		headerStyle.Render("Version:"),
+		infoStyle.Render("v{{.Version}}"),
+		dimStyle.Render("📦"),
+		dimStyle.Render("📅"),
+		dimStyle.Render("2024"),
+		dimStyle.Render("©"))
+	
+	rootCmd.SetVersionTemplate(versionTemplate)
+
+	// Customize help output
+	helpTemplate := fmt.Sprintf(`%s
+%s
+%s
+
+%s
+%s
+
+%s
+{{if .Runnable}}  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+%s
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+%s
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+
+%s
+{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+%s
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+%s
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+%s
+{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+%s{{end}}
+
+%s
+
+`,
+		strings.Repeat("━", 60),
+		titleStyle.Render("🚀 FormsFlow.ai Version Updater"),
+		strings.Repeat("━", 60),
+		headerStyle.Render("📋 DESCRIPTION"),
+		dimStyle.Render("   Enterprise-grade version synchronization tool for FormsFlow.ai"),
+		headerStyle.Render("🔧 USAGE"),
+		headerStyle.Render("📝 ALIASES"),
+		headerStyle.Render("💡 EXAMPLES"),
+		headerStyle.Render("🎯 AVAILABLE COMMANDS"),
+		headerStyle.Render("⚙️  FLAGS"),
+		headerStyle.Render("🌐 GLOBAL FLAGS"),
+		headerStyle.Render("❓ ADDITIONAL HELP TOPICS"),
+		dimStyle.Render("Use \"{{.CommandPath}} [command] --help\" for more information about a command."),
+		strings.Repeat("━", 60))
+
+	rootCmd.SetHelpTemplate(helpTemplate)
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", errorStyle.Render("Error: "+err.Error()))
 		os.Exit(1)
@@ -937,8 +1014,8 @@ func printFinalSummary(m model) {
 			Padding(1, 2).
 			Margin(0, 0, 1, 0)
 		
-		nextStepsText := fmt.Sprintf("Ready to apply changes!\n\nRun: %s\n\nThis will modify %d files with %d version updates", 
-			successStyle.Render("./bin/formsflow-version-updater"), 
+		nextStepsText := fmt.Sprintf("Ready to apply changes!\n\n%s\n\nThis will modify %d files with %d version updates", 
+			successStyle.Render("Run the CLI command without --dry-run flag to make the changes"), 
 			filesWithChanges, 
 			m.totalChanges)
 		
