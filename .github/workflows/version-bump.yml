@@ -157,8 +157,8 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          source: ${{ steps.check_branch.outputs.branch }}
-          target: ${{ github.ref_name }}
+          branch: ${{ steps.check_branch.outputs.branch }}
+          base: ${{ github.ref_name }}
           title: "Version bump to ${{ steps.get_version.outputs.version }}"
           body: |
             ## 🤖 Automated Version Bump
