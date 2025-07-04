@@ -99,7 +99,19 @@ jobs:
           chmod +x scripts/version-bump-cli/formsflow-version-updater-linux-amd64
           echo "✅ CLI verification complete"
 
-      # Step 5: Run the version update script
+      # Step 5: Create new branch first
+      - name: Create version-bump branch
+        run: |
+          echo "🌿 Creating new branch: ${{ steps.check_branch.outputs.branch }}"
+          git checkout -b "${{ steps.check_branch.outputs.branch }}"
+          
+          # Configure git for the action
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          echo "✅ Branch created successfully"
+
+      # Step 6: Run the version update script on the new branch
       - name: Run version update script
         run: |
           echo "🚀 Running version update across repository..."
@@ -111,7 +123,7 @@ jobs:
           
           echo "✅ Version updates applied"
 
-      # Step 6: Check if any changes were actually made
+      # Step 7: Check if any changes were actually made
       - name: Check for changes
         id: check_changes
         run: |
@@ -120,7 +132,7 @@ jobs:
             echo "ℹ️  No changes detected after version update"
             echo "changes_made=false" >> $GITHUB_OUTPUT
           else
-            echo "📝 Changes detected, will create branch and PR"
+            echo "📝 Changes detected, will commit and create PR"
             echo "changes_made=true" >> $GITHUB_OUTPUT
             
             # Show what files were changed
@@ -128,17 +140,10 @@ jobs:
             git diff --name-only
           fi
 
-      # Step 7: Create new branch and commit changes
-      - name: Create version-bump branch and commit changes
+      # Step 8: Commit changes to the version-bump branch
+      - name: Commit changes to version-bump branch
         if: steps.check_changes.outputs.changes_made == 'true'
         run: |
-          echo "🌿 Creating new branch: ${{ steps.check_branch.outputs.branch }}"
-          git checkout -b "${{ steps.check_branch.outputs.branch }}"
-          
-          # Configure git for the action
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          
           # Add all changes and commit
           git add -A
           git commit -m "chore: version bump to ${{ steps.get_version.outputs.version }}
@@ -149,9 +154,9 @@ jobs:
           
           echo "📤 Pushing branch to remote..."
           git push --set-upstream origin "${{ steps.check_branch.outputs.branch }}"
-          echo "✅ Branch created and pushed successfully"
+          echo "✅ Changes committed and pushed to version-bump branch"
 
-      # Step 8: Create Pull Request
+      # Step 9: Create Pull Request
       - name: Create Pull Request
         if: steps.check_changes.outputs.changes_made == 'true'
         uses: peter-evans/create-pull-request@v6
@@ -188,7 +193,7 @@ jobs:
           delete-branch: false  # Keep branch for reference
           commit-message: "chore: version bump to ${{ steps.get_version.outputs.version }}"
 
-      # Step 9: Summary
+      # Step 10: Summary
       - name: Workflow Summary
         run: |
           echo "📊 Workflow Summary"
