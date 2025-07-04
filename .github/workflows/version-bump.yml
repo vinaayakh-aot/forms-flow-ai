@@ -80,36 +80,34 @@ jobs:
       - name: Verify version updater CLI
         run: |
           echo "🔧 Verifying version updater CLI..."
-          cd scripts/version-bump-cli
           
           # Check if Linux AMD64 binary exists
-          if [ ! -f "./formsflow-version-updater-linux-amd64" ]; then
-            echo "❌ Linux AMD64 binary not found: formsflow-version-updater-linux-amd64"
+          if [ ! -f "./scripts/version-bump-cli/formsflow-version-updater-linux-amd64" ]; then
+            echo "❌ Linux AMD64 binary not found: scripts/version-bump-cli/formsflow-version-updater-linux-amd64"
             echo "💡 Please ensure the binary is present in scripts/version-bump-cli/"
             exit 1
           fi
           
           # Test if binary is executable and works
-          if ! ./formsflow-version-updater-linux-amd64 --version > /dev/null 2>&1; then
+          if ! ./scripts/version-bump-cli/formsflow-version-updater-linux-amd64 --version > /dev/null 2>&1; then
             echo "❌ Binary is not executable or incompatible with Linux runner"
             echo "💡 Please ensure the binary is built for Linux AMD64"
             exit 1
           fi
           
           # Ensure executable permissions
-          chmod +x formsflow-version-updater-linux-amd64
+          chmod +x scripts/version-bump-cli/formsflow-version-updater-linux-amd64
           echo "✅ CLI verification complete"
 
       # Step 5: Run the version update script
       - name: Run version update script
         run: |
           echo "🚀 Running version update across repository..."
-          cd scripts/version-bump-cli
           
           echo "🔄 Applying version updates..."
-          ./formsflow-version-updater-linux-amd64 \
-            --config config-simple.json \
-            --version-file ../../VERSION
+          ./scripts/version-bump-cli/formsflow-version-updater-linux-amd64 \
+            --config scripts/version-bump-cli/config-simple.json \
+            --version-file VERSION
           
           echo "✅ Version updates applied"
 
