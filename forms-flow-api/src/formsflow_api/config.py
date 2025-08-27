@@ -64,6 +64,15 @@ class _Config:  # pylint: disable=too-few-public-methods
         f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
     )
 
+    # BASE CONNECTION POOLING (can be overridden by environment-specific configs)
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,        # Always verify connections before use
+        "pool_recycle": 300,          # Recycle connections every 5 minutes
+        "connect_args": {
+            "connect_timeout": 10,    # Standard PostgreSQL connection timeout
+        }
+    }
+
     TESTING = False
     DEBUG = False
 
@@ -160,6 +169,20 @@ class DevConfig(_Config):  # pylint: disable=too-few-public-methods
 
     TESTING = False
     DEBUG = True
+    
+    # OPTIMIZED CONNECTION POOLING FOR LOCAL DEVELOPMENT
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_size": 15,              # Moderate pool for development
+        "max_overflow": 25,           # Allow overflow connections
+        "pool_pre_ping": True,        # Verify connections before use
+        "pool_recycle": 600,          # Recycle every 10 minutes (longer for dev)
+        "pool_timeout": 15,           # Connection timeout
+        "echo": False,                # Set to True if you want SQL logging
+        "connect_args": {
+            "connect_timeout": 10,    # PostgreSQL connection timeout
+            "application_name": "formsflow-api-dev",
+        }
+    }
 
 
 class TestConfig(_Config):  # pylint: disable=too-few-public-methods
@@ -254,8 +277,16 @@ class ProdConfig(_Config):  # pylint: disable=too-few-public-methods
 
     SECRET_KEY = os.getenv("SECRET_KEY", None)
     SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
+        "pool_size": 25,              # Larger pool for production
+        "max_overflow": 40,           # Higher overflow for peak loads
+        "pool_pre_ping": True,        # Critical for AWS RDS
+        "pool_recycle": 300,          # Recycle every 5 minutes
+        "pool_timeout": 20,           # Faster timeout for production
+        "echo": False,                # No SQL logging in production
+        "connect_args": {
+            "connect_timeout": 10,    # PostgreSQL connection timeout
+            "application_name": "formsflow-api",
+        }
     }
 
     if not SECRET_KEY:
