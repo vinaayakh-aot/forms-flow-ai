@@ -133,8 +133,11 @@ class FilterService:
                     user_name, FilterType.TASK.value, None
                 )
 
-        # Get user's default filter preference
-        user_data = User.get_user_by_user_name(user_name=user_name)
+        # Get user's default filter preference - must re-fetch user from DB if just created above
+        if 'user_exist_in_db' in locals() and user_exist_in_db:
+            user_data = user_exist_in_db
+        else:
+            user_data = User.get_user_by_user_name(user_name=user_name)
         default_filter = user_data.default_filter if user_data else None
         
         # Return response with both filters and defaultFilter (matching API spec)

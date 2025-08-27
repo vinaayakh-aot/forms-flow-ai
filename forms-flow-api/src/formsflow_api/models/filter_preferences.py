@@ -7,11 +7,14 @@ from typing import List
 from formsflow_api_utils.utils.enums import FilterStatus
 from sqlalchemy import Index, UniqueConstraint, and_, or_, tuple_
 from sqlalchemy.orm import relationship
+from sqlalchemy.orm import aliased, contains_eager
+from sqlalchemy import or_, and_
 
 from .audit_mixin import AuditDateTimeMixin
 from .base_model import BaseModel
 from .db import db
 from .filter import Filter
+
 
 
 class FilterPreferences(db.Model, BaseModel, AuditDateTimeMixin):
@@ -102,12 +105,6 @@ class FilterPreferences(db.Model, BaseModel, AuditDateTimeMixin):
         """
         Get user's filter preferences with authorization checks.
         
-        This method performs a complex query that:
-        1. Finds user's saved filter preferences
-        2. Joins with the filter table to get filter details
-        3. Applies authorization rules (user can only see their own filters + public filters)
-        4. Uses eager loading to avoid N+1 queries
-        
         :param user_id: Username to get preferences for
         :param tenant: Tenant key for multi-tenancy
         :param filter_type: Type of filters (TASK, ATTRIBUTE)
@@ -115,45 +112,39 @@ class FilterPreferences(db.Model, BaseModel, AuditDateTimeMixin):
         :param parent_filter_id: Parent filter ID for nested filters
         :return: List of FilterPreferences with populated filter relationships
         """
-        from sqlalchemy.orm import aliased, contains_eager
-        from sqlalchemy import or_, and_
+        
         
         # Build base query for user's filter preferences
-        base_query = cls.query.filter(cls.user_id == user_id)
+        query = cls.query.filter(cls.user_id == user_id)
         if tenant:
-            base_query = base_query.filter(cls.tenant == tenant)
+            query = query.filter(cls.tenant == tenant)
 
-        # Join with filter table to get filter details and apply constraints
+        # Join with filter table and apply constraints
         filter_alias = aliased(Filter)
-        query = base_query.join(filter_alias, cls.filter_id == filter_alias.id)
-
-        # Apply filter constraints (uses database indexes for performance)
+        query = query.join(filter_alias, cls.filter_id == filter_alias.id)
+        
+        # Apply filter constraints
         query = query.filter(
             filter_alias.status == FilterStatus.ACTIVE.value,
             filter_alias.filter_type == filter_type,
         )
+        
         if parent_filter_id:
             query = query.filter(filter_alias.parent_filter_id == parent_filter_id)
 
-        # Use eager loading to populate filter relationship in single query
-        # This prevents N+1 queries when accessing preference.filter later
+        # Eager load filter relationship to avoid N+1 queries
         query = query.options(contains_eager(cls.filter, alias=filter_alias))
         
-        # Apply authorization rules: user can see their own filters + public filters
+        # Apply authorization: user can see their own filters + public filters
         query = query.filter(
             or_(
-                # User's own filters (they created them)
-                filter_alias.created_by == user_id,
-                # Public filters (no role/user restrictions)
+                filter_alias.created_by == user_id,  # User's own filters
                 and_(
-                    or_(filter_alias.roles.is_(None), filter_alias.roles == []),
-                    or_(filter_alias.users.is_(None), filter_alias.users == []),
+                    or_(filter_alias.roles.is_(None), filter_alias.roles == []),  # No role restrictions
+                    or_(filter_alias.users.is_(None), filter_alias.users == []),  # No user restrictions
                     filter_alias.created_by != user_id  # Not user's own filter
                 )
             )
         )
         
-        # Order by user's custom sort preference
-        query = query.order_by(cls.sort_order.asc())
-        
-        return query.all()
+        return query.order_by(cls.sort_order.asc()).all()
