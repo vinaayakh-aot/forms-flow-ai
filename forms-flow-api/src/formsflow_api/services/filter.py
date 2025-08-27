@@ -4,9 +4,9 @@ from __future__ import annotations
 from typing import List
 from flask import current_app, g
 from formsflow_api_utils.utils.user_context import UserContext, user_context
-from formsflow_api_utils.utils.enums import FilterStatus
 from formsflow_api_utils.exceptions import BusinessException
 from formsflow_api_utils.utils import MANAGE_ALL_FILTERS
+from formsflow_api_utils.utils.constants import DESIGNER_GROUP
 
 from formsflow_api.constants import (
     STATIC_TASK_FILTER_VARIABLES,
@@ -102,13 +102,7 @@ class FilterService:
             filter_schema = FilterSchema()
             filter_data = filter_schema.dump(filters, many=True)
         else:
-            # Main path: Get user's filter preferences and accessible filters
-            filter_data = FilterService.get_filters_by_user_filter_preference(
-                user_name, FilterType.TASK.value, None
-            )
-            
             # Check if user is a designer (needs special filter handling)
-            from formsflow_api_utils.utils.constants import DESIGNER_GROUP
             is_designer = DESIGNER_GROUP in user.group_or_roles
             
             # Ensure user exists in database (creates if missing)
@@ -122,16 +116,17 @@ class FilterService:
                 User.create_user(user_data)
                 current_app.logger.info("New user: %s", user_name)
             
-            # For designers with no filters: create default "All Tasks" filter
-            if not filter_data and is_designer:
-                current_app.logger.info("Creating defaults for designer")
+            # For designers: ensure default "All Tasks" filter exists before fetching
+            if is_designer:
+                current_app.logger.info("Ensuring defaults exist for designer")
                 all_task_filter_exists = Filter.check_all_tasks_filter_exists(tenant_key)
                 if not all_task_filter_exists:
                     Filter.create_default_all_tasks_filter(tenant_key)
-                # Re-fetch filters after creating defaults
-                filter_data = FilterService.get_filters_by_user_filter_preference(
-                    user_name, FilterType.TASK.value, None
-                )
+            
+            # Get user's filter preferences and accessible filters (single call)
+            filter_data = FilterService.get_filters_by_user_filter_preference(
+                user_name, FilterType.TASK.value, None
+            )
 
         # Get user's default filter preference - must re-fetch user from DB if just created above
         if 'user_exist_in_db' in locals() and user_exist_in_db:
