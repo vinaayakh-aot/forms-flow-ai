@@ -215,3 +215,54 @@ class Filter(AuditDateTimeMixin, AuditUserMixin, BaseModel, db.Model):
         if tenant:
             query = query.filter(Filter.tenant == tenant)
         return query.all() or []
+
+    @classmethod
+    def check_all_tasks_filter_exists(cls, tenant_key: str) -> bool:
+        """Check if 'All Tasks' filter exists for tenant or globally.
+        
+        This method optimizes the expensive full table scan in get_user_filters
+        by using a targeted database query with proper indexing.
+        
+        Args:
+            tenant_key: The tenant key to check for
+            
+        Returns:
+            bool: True if the filter exists, False otherwise
+        """
+        return cls.query.filter(
+            cls.name.ilike('all tasks'),
+            cls.status == str(FilterStatus.ACTIVE.value),
+            or_(
+                and_(cls.tenant.is_(None), cls.roles.is_(None), cls.users.is_(None)),
+                cls.tenant == tenant_key
+            )
+        ).first() is not None
+
+    @classmethod
+    def create_default_all_tasks_filter(cls, tenant_key: str) -> Filter:
+        """Create a default 'All Tasks' filter for the tenant.
+        
+        Args:
+            tenant_key: The tenant key to create the filter for
+            
+        Returns:
+            Filter: The created filter object
+        """
+        from formsflow_api.constants import STATIC_TASK_FILTER_VARIABLES
+        
+        filter_obj = Filter(
+            name="All Tasks",
+            variables=STATIC_TASK_FILTER_VARIABLES,
+            status=str(FilterStatus.ACTIVE.value),
+            created_by="system",
+            criteria={
+                "candidateGroupsExpression": "${currentUserGroups()}",
+                "includeAssignedTasks": True,
+            },
+            users={},
+            roles={},
+            tenant=tenant_key,
+            filter_type=FilterType.TASK,
+        )
+        filter_obj.save()
+        return filter_obj

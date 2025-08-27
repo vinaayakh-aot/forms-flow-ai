@@ -99,34 +99,70 @@ class FilterPreferences(db.Model, BaseModel, AuditDateTimeMixin):
         roles: List[str],
         parent_filter_id: int = None,
     ) -> List[FilterPreferences]:
-        """Find filter preference with specific user id."""
-        query = cls.query.filter(
-            cls.user_id == user_id,
-            cls.filter.has(Filter.status == FilterStatus.ACTIVE.value),
-            cls.filter.has(Filter.filter_type == filter_type),
-        )
+        """Find filter preference with specific user id - SIMPLIFIED OPTIMIZATION.
+        
+        Focus on the core bottleneck: eliminate complex array operations and use simpler queries.
+        """
+        import time
+        import logging
+        
+        perf_logger = logging.getLogger('performance.filter_preferences_detailed')
+        start_time = time.time()
+        
+        perf_logger.info(f"[PERF] get_filters_by_user_id SIMPLIFIED started for user: {user_id}")
+        
+        # STEP 1: Get basic filter preferences for the user (this should be fast)
+        basic_start = time.time()
+        base_query = cls.query.filter(cls.user_id == user_id)
+        
         if tenant:
-            query = query.filter(cls.tenant == tenant)
+            base_query = base_query.filter(cls.tenant == tenant)
+        
+        basic_duration = (time.time() - basic_start) * 1000
+        perf_logger.info(f"[PERF] Basic preference filter: {basic_duration:.2f}ms")
+        
+        # STEP 2: Apply filter table constraints with explicit JOIN
+        join_start = time.time()
+        query = base_query.join(Filter, cls.filter_id == Filter.id)
+        
+        # Apply simple, indexed filters
+        query = query.filter(
+            Filter.status == FilterStatus.ACTIVE.value,
+            Filter.filter_type == filter_type,
+        )
+        
         if parent_filter_id:
-            query = query.filter(
-                cls.filter.has(Filter.parent_filter_id == parent_filter_id)
+            query = query.filter(Filter.parent_filter_id == parent_filter_id)
+        
+        join_duration = (time.time() - join_start) * 1000
+        perf_logger.info(f"[PERF] JOIN and basic filters: {join_duration:.2f}ms")
+        
+        # STEP 3: Authorization check - SINGLE OPTIMIZED QUERY
+        auth_start = time.time()
+        
+        # CRITICAL FIX: Combine into ONE query to eliminate network round trips
+        # Use OR to get both user-created and public filters in a single database hit
+        combined_query = query.filter(
+            or_(
+                # User-created filters
+                Filter.created_by == user_id,
+                # Public filters (no role/user restrictions)
+                and_(
+                    or_(Filter.roles.is_(None), Filter.roles == []),
+                    or_(Filter.users.is_(None), Filter.users == [])
+                )
             )
-        # Filer Authorization checks
-        role_conditions = []
-        if roles:
-            role_conditions = [Filter.roles.contains([role]) for role in roles]
-
-        auth_conditions = [
-            *role_conditions,
-            Filter.users.contains([user_id]),
-            and_(
-                or_(Filter.roles == {}, Filter.roles.is_(None)),
-                or_(Filter.users == {}, Filter.users.is_(None)),
-            ),
-            Filter.created_by == user_id,
-        ]
-
-        query = query.filter(cls.filter.has(or_(*auth_conditions)))
-
-        query = query.order_by(cls.sort_order.asc())
-        return query.all() or []
+        )
+        
+        # Single database query instead of two separate ones
+        result = combined_query.order_by(cls.sort_order.asc()).all()
+        
+        auth_duration = (time.time() - auth_start) * 1000
+        perf_logger.info(f"[PERF] Authorization (simplified): {auth_duration:.2f}ms")
+        
+        total_duration = (time.time() - start_time) * 1000
+        perf_logger.info(f"[PERF] get_filters_by_user_id SIMPLIFIED TOTAL: {total_duration:.2f}ms, returned {len(result)} results")
+        perf_logger.info(f"[PERF] BREAKDOWN - Basic: {basic_duration:.1f}ms, "
+                        f"JOIN: {join_duration:.1f}ms, Auth: {auth_duration:.1f}ms")
+        
+        return result

@@ -70,8 +70,31 @@ class User(AuditDateTimeMixin, AuditUserMixin, BaseModel, db.Model):
 
     @classmethod
     def get_user_by_user_name(cls, user_name: str = None):
-        """Find user data by username."""
+        """Find user data by username - OPTIMIZED WITH PERFORMANCE LOGGING."""
+        import time
+        import logging
+        
+        perf_logger = logging.getLogger('performance.user_lookup')
+        start_time = time.time()
+        
         assert user_name is not None
+        
+        query_start = time.time()
         query = cls.query.filter(cls.user_name == user_name)
+        query_build_duration = (time.time() - query_start) * 1000
+        perf_logger.info(f"[PERF] User query build: {query_build_duration:.2f}ms")
+        
+        auth_start = time.time()
         query = cls.tenant_authorization(query)
-        return query.one_or_none()
+        auth_duration = (time.time() - auth_start) * 1000
+        perf_logger.info(f"[PERF] Tenant authorization: {auth_duration:.2f}ms")
+        
+        execute_start = time.time()
+        result = query.one_or_none()
+        execute_duration = (time.time() - execute_start) * 1000
+        perf_logger.info(f"[PERF] Query execution: {execute_duration:.2f}ms")
+        
+        total_duration = (time.time() - start_time) * 1000
+        perf_logger.info(f"[PERF] get_user_by_user_name TOTAL: {total_duration:.2f}ms, found: {result is not None}")
+        
+        return result
