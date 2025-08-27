@@ -91,7 +91,7 @@ class FilterPreferences(db.Model, BaseModel, AuditDateTimeMixin):
         return db.session.commit()
 
     @classmethod
-    def get_filters_by_user_id(  # pylint: disable-msg=too-many-arguments, too-many-locals, too-many-positional-arguments
+    def get_filters_by_user_id(
         cls,
         user_id: str,
         tenant: str,
@@ -99,19 +99,35 @@ class FilterPreferences(db.Model, BaseModel, AuditDateTimeMixin):
         roles: List[str],
         parent_filter_id: int = None,
     ) -> List[FilterPreferences]:
-        """Find filter preference with specific user id."""
+        """
+        Get user's filter preferences with authorization checks.
         
-        # STEP 1: Get basic filter preferences for the user
+        This method performs a complex query that:
+        1. Finds user's saved filter preferences
+        2. Joins with the filter table to get filter details
+        3. Applies authorization rules (user can only see their own filters + public filters)
+        4. Uses eager loading to avoid N+1 queries
+        
+        :param user_id: Username to get preferences for
+        :param tenant: Tenant key for multi-tenancy
+        :param filter_type: Type of filters (TASK, ATTRIBUTE)
+        :param roles: User's roles for authorization (currently unused but kept for API compatibility)
+        :param parent_filter_id: Parent filter ID for nested filters
+        :return: List of FilterPreferences with populated filter relationships
+        """
+        from sqlalchemy.orm import aliased, contains_eager
+        from sqlalchemy import or_, and_
+        
+        # Build base query for user's filter preferences
         base_query = cls.query.filter(cls.user_id == user_id)
         if tenant:
             base_query = base_query.filter(cls.tenant == tenant)
 
-        # STEP 2: Apply filter table constraints with explicit JOIN
-        from sqlalchemy.orm import aliased
+        # Join with filter table to get filter details and apply constraints
         filter_alias = aliased(Filter)
         query = base_query.join(filter_alias, cls.filter_id == filter_alias.id)
 
-        # Apply simple, indexed filters
+        # Apply filter constraints (uses database indexes for performance)
         query = query.filter(
             filter_alias.status == FilterStatus.ACTIVE.value,
             filter_alias.filter_type == filter_type,
@@ -119,23 +135,25 @@ class FilterPreferences(db.Model, BaseModel, AuditDateTimeMixin):
         if parent_filter_id:
             query = query.filter(filter_alias.parent_filter_id == parent_filter_id)
 
-        # STEP 3: Authorization check and eager loading
-        from sqlalchemy.orm import contains_eager
-        combined_query = query.options(contains_eager(cls.filter, alias=filter_alias))
+        # Use eager loading to populate filter relationship in single query
+        # This prevents N+1 queries when accessing preference.filter later
+        query = query.options(contains_eager(cls.filter, alias=filter_alias))
         
-        combined_query = combined_query.filter(
+        # Apply authorization rules: user can see their own filters + public filters
+        query = query.filter(
             or_(
-                # User-created filters
+                # User's own filters (they created them)
                 filter_alias.created_by == user_id,
-                # Public filters - uses partial indexes
+                # Public filters (no role/user restrictions)
                 and_(
                     or_(filter_alias.roles.is_(None), filter_alias.roles == []),
                     or_(filter_alias.users.is_(None), filter_alias.users == []),
-                    filter_alias.created_by != user_id
+                    filter_alias.created_by != user_id  # Not user's own filter
                 )
             )
         )
         
-        combined_query = combined_query.order_by(cls.sort_order.asc())
+        # Order by user's custom sort preference
+        query = query.order_by(cls.sort_order.asc())
         
-        return combined_query.all()
+        return query.all()

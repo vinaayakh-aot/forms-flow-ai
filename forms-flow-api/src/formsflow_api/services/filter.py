@@ -26,33 +26,50 @@ class FilterService:
     def get_filters_by_user_filter_preference(
         user_name: str, filter_type: str, parent_filter_id: int, **kwargs
     ) -> List[Filter]:
-        """Return filters based on user preference."""
+        """
+        Return filters based on user preferences and access permissions.
+        
+        This method combines:
+        1. User's saved filter preferences (with custom sort order/hide settings)
+        2. Additional filters the user has access to but hasn't saved as preferences
+        
+        :param user_name: Username to get filters for
+        :param filter_type: Type of filters (TASK, ATTRIBUTE)
+        :param parent_filter_id: Parent filter ID for nested filters
+        :param kwargs: Contains user context from @user_context decorator
+        :return: List of filter data with user preferences applied
+        """
         user: UserContext = kwargs["user"]
         group_or_roles = user.group_or_roles
         tenant_key = g.token_info.get("tenantId")
+        
+        # Get user's saved filter preferences (expensive query with authorization)
         filter_preference = FilterPreferences.get_filters_by_user_id(
             user_name, tenant_key, filter_type, group_or_roles, parent_filter_id
         )
+        # Process user's saved preferences (apply custom sort order and hide settings)
         existing_filter_ids = []
         existing_filters = []
         if filter_preference:
             for preference_data in filter_preference:
                 existing_filter_ids.append(preference_data.filter_id)
-                # adding filter_preference sort order to filter data
+                # Apply user's custom settings to the filter
                 preference_data.filter.sort_order = preference_data.sort_order
                 preference_data.filter.hide = preference_data.hide
                 existing_filters.append(preference_data.filter)
         
-        current_app.logger.debug("Existing filter IDs: %s", existing_filter_ids)
+        current_app.logger.debug("User preferences: %s", existing_filter_ids)
         
+        # Get additional filters user has access to but hasn't saved as preferences
         user_filters = Filter.find_user_filters(
             roles=group_or_roles,
             user=user_name,
             filter_type=filter_type,
             parent_filter_id=parent_filter_id,
-            exclude_ids=existing_filter_ids,
+            exclude_ids=existing_filter_ids,  # Don't duplicate filters already in preferences
         )
         
+        # Combine preferences (with custom settings) + accessible filters
         all_filters = existing_filters + user_filters
         filter_schema = FilterSchema()
         return filter_schema.dump(all_filters, many=True)
@@ -61,49 +78,70 @@ class FilterService:
     @user_context
     def get_user_filters(**kwargs):
         """
-        Return filters based on user roles.
-
-        :param kwargs:
+        Return filters based on user roles and preferences.
+        
+        Flow:
+        1. Check if single-tenant mode (fast path)
+        2. Get user's filter preferences and accessible filters
+        3. Create user in DB if doesn't exist
+        4. Create default filters for designers if needed
+        5. Get user's default filter preference
+        
+        :param kwargs: Contains user context from @user_context decorator
+        :return: Dict with 'filters' and 'defaultFilter' fields
         """
         user: UserContext = kwargs["user"]
         user_name = user.user_name
         tenant_key = user.tenant_key
         
+        # Fast path: Single-tenant deployments return all active TASK filters
         if tenant_key and not user.is_multitenant_user():
             filters = Filter.find_all_active_filters(
                 filter_type=FilterType.TASK.value, tenant_key=tenant_key
             )
             filter_schema = FilterSchema()
-            return filter_schema.dump(filters, many=True)
-            
-        filter_data = FilterService.get_filters_by_user_filter_preference(
-            user_name, FilterType.TASK.value, None
-        )
-        # TODO: find a way to check if user exists in formio
-        # formio_user = FormioService.get_user_by_email(user.email)
-
-        from formsflow_api_utils.utils.constants import DESIGNER_GROUP
-        is_designer = DESIGNER_GROUP in user.group_or_roles
-        user_exist_in_db = User.get_user_by_user_name(user_name=user_name)
-        if not user_exist_in_db:
-            user_data = {
-                "user_name": user_name,
-                "tenant": tenant_key,
-                "created_by": user_name,
-            }
-            User.create_user(user_data)
-            current_app.logger.info("New user added to DB: %s", user_name)
-            
-        if not filter_data and is_designer:
-            current_app.logger.info("Creating default filters for designer")
-            all_task_filter_exists = Filter.check_all_tasks_filter_exists(tenant_key)
-            if not all_task_filter_exists:
-                Filter.create_default_all_tasks_filter(tenant_key)
+            filter_data = filter_schema.dump(filters, many=True)
+        else:
+            # Main path: Get user's filter preferences and accessible filters
             filter_data = FilterService.get_filters_by_user_filter_preference(
                 user_name, FilterType.TASK.value, None
             )
+            
+            # Check if user is a designer (needs special filter handling)
+            from formsflow_api_utils.utils.constants import DESIGNER_GROUP
+            is_designer = DESIGNER_GROUP in user.group_or_roles
+            
+            # Ensure user exists in database (creates if missing)
+            user_exist_in_db = User.get_user_by_user_name(user_name=user_name)
+            if not user_exist_in_db:
+                user_data = {
+                    "user_name": user_name,
+                    "tenant": tenant_key,
+                    "created_by": user_name,
+                }
+                User.create_user(user_data)
+                current_app.logger.info("New user: %s", user_name)
+            
+            # For designers with no filters: create default "All Tasks" filter
+            if not filter_data and is_designer:
+                current_app.logger.info("Creating defaults for designer")
+                all_task_filter_exists = Filter.check_all_tasks_filter_exists(tenant_key)
+                if not all_task_filter_exists:
+                    Filter.create_default_all_tasks_filter(tenant_key)
+                # Re-fetch filters after creating defaults
+                filter_data = FilterService.get_filters_by_user_filter_preference(
+                    user_name, FilterType.TASK.value, None
+                )
 
-        return filter_data
+        # Get user's default filter preference
+        user_data = User.get_user_by_user_name(user_name=user_name)
+        default_filter = user_data.default_filter if user_data else None
+        
+        # Return response with both filters and defaultFilter (matching API spec)
+        return {
+            "filters": filter_data,
+            "defaultFilter": default_filter
+        }
 
     @staticmethod
     @user_context

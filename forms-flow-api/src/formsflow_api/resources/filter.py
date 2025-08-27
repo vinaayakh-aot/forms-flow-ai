@@ -109,7 +109,7 @@ filter_response_with_default_filter = API.model(
     "FilterResponseWithDefaultFilter",
     {
         "filters": fields.List(fields.Nested(filter_response)),
-        "defaultFilter": fields.String(description="Default filter"),
+        "defaultFilter": fields.Integer(description="Default filter ID", allow_null=True),
     },
 )
 
