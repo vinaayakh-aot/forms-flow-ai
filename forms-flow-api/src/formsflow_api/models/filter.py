@@ -26,6 +26,9 @@ class FilterType(Enum):
 class Filter(AuditDateTimeMixin, AuditUserMixin, BaseModel, db.Model):
     """This class manages filter information."""
 
+    # Class constant for better performance - eliminates repeated string conversion
+    ACTIVE_STATUS = str(FilterStatus.ACTIVE.value)
+    
     id = db.Column(db.Integer, primary_key=True)
     tenant = db.Column(db.String, index=True, nullable=True)
     name = db.Column(db.String, nullable=False)
@@ -46,10 +49,17 @@ class Filter(AuditDateTimeMixin, AuditUserMixin, BaseModel, db.Model):
     @classmethod
     def find_all_active_filters(cls, tenant: str = None) -> List[Filter]:
         """Find all active filters."""
-        query = cls.query.filter(Filter.status == str(FilterStatus.ACTIVE.value))
         if tenant:
-            query = query.filter(Filter.tenant == tenant)
-        return query.all()
+            # Use and_ operator for better index utilization when both filters are applied
+            return cls.query.filter(
+                and_(
+                    Filter.status == cls.ACTIVE_STATUS,
+                    Filter.tenant == tenant
+                )
+            ).all()
+        else:
+            # Single filter when no tenant specified
+            return cls.query.filter(Filter.status == cls.ACTIVE_STATUS).all()
 
     @classmethod
     def find_all_filters(cls, tenant: str = None) -> List[Filter]:
